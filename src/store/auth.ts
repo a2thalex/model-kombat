@@ -3,6 +3,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser
@@ -48,6 +50,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
   initAuth: () => {
     set({ loading: true })
+
+    // Check for redirect result first (when returning from OAuth redirect)
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          console.log('Redirect sign-in successful:', result.user.email)
+          const user = mapFirebaseUser(result.user)
+          set({ user, isAuthenticated: true })
+        }
+      })
+      .catch((error) => {
+        console.error('Redirect sign-in error:', error)
+      })
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         console.log('Auth state changed - Firebase user:', {
@@ -99,6 +115,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       signInWithGoogle: async () => {
         set({ loading: true })
         try {
+          // Try popup first
           const userCredential = await signInWithPopup(auth, googleProvider)
           console.log('Firebase user data:', {
             uid: userCredential.user.uid,
@@ -113,11 +130,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
         } catch (error: any) {
           console.error('Google sign in error:', error)
 
-          // Better error messages for common issues
-          if (error.code === 'auth/popup-closed-by-user') {
-            throw new Error('Sign-in popup was closed. Please try again.')
-          } else if (error.code === 'auth/popup-blocked') {
-            throw new Error('Popup was blocked by your browser. Please allow popups for this site.')
+          // If popup fails due to COOP or popup blocked, fallback to redirect
+          if (error.code === 'auth/popup-closed-by-user' ||
+              error.code === 'auth/popup-blocked' ||
+              error.message?.includes('Cross-Origin-Opener-Policy')) {
+            console.log('Popup failed, using redirect method...')
+            // Use redirect as fallback
+            await signInWithRedirect(auth, googleProvider)
+            // The page will redirect, so loading state will be reset on return
+            return
           } else if (error.code === 'auth/cancelled-popup-request') {
             throw new Error('Another sign-in popup is already open.')
           } else if (error.code === 'auth/unauthorized-domain') {
