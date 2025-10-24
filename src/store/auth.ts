@@ -110,8 +110,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
           const user = mapFirebaseUser(userCredential.user)
           console.log('Mapped user data:', user)
           set({ user, isAuthenticated: true })
-        } catch (error) {
+        } catch (error: any) {
           console.error('Google sign in error:', error)
+
+          // Better error messages for common issues
+          if (error.code === 'auth/popup-closed-by-user') {
+            throw new Error('Sign-in popup was closed. Please try again.')
+          } else if (error.code === 'auth/popup-blocked') {
+            throw new Error('Popup was blocked by your browser. Please allow popups for this site.')
+          } else if (error.code === 'auth/cancelled-popup-request') {
+            throw new Error('Another sign-in popup is already open.')
+          } else if (error.code === 'auth/unauthorized-domain') {
+            throw new Error('This domain is not authorized for OAuth. Please contact support.')
+          }
+
           throw error
         } finally {
           set({ loading: false })

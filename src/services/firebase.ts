@@ -13,7 +13,9 @@ import {
 import {
   getFirestore,
   connectFirestoreEmulator,
-  enableIndexedDbPersistence
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -31,7 +33,13 @@ const app = initializeApp(firebaseConfig)
 
 // Initialize services
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+// Initialize Firestore with persistent cache
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+})
 
 // Auth providers
 export const googleProvider = new GoogleAuthProvider()
@@ -43,15 +51,6 @@ googleProvider.setCustomParameters({
 
 export const githubProvider = new GithubAuthProvider()
 githubProvider.addScope('user:email')
-
-// Enable offline persistence
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.')
-  } else if (err.code === 'unimplemented') {
-    console.warn('The current browser does not support offline persistence')
-  }
-})
 
 // Connect to emulators in development
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true') {
