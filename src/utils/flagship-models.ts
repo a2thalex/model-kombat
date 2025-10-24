@@ -1,21 +1,24 @@
-// Flagship models from major AI companies
+// Flagship models from major AI companies (October 2025)
 // These are the best/most capable models from each provider
 export const FLAGSHIP_MODEL_IDS = [
-  // OpenAI
-  'openai/gpt-4o',             // GPT-4 Omni (latest multimodal)
-  'openai/gpt-4-turbo',        // GPT-4 Turbo
+  // OpenAI (2025 Models)
+  'openai/gpt-5',              // GPT-5 (unified multimodal: text, code, images, audio, video)
+  'openai/gpt-4.1',            // GPT-4.1 (21.4% better at coding, 1M context)
+  'openai/o3',                 // O3 reasoning model (83.3 GPQA, 91.6 AIME)
   'openai/o1-preview',         // O1 reasoning model
-  'openai/o1-mini',            // O1 mini reasoning
+  'openai/gpt-4o',             // GPT-4 Omni
 
-  // Anthropic
-  'anthropic/claude-3.5-sonnet', // Claude 3.5 Sonnet (latest)
-  'anthropic/claude-3-opus',     // Claude 3 Opus (most capable)
-  'anthropic/claude-3-sonnet',   // Claude 3 Sonnet
+  // Anthropic (2025 Models)
+  'anthropic/claude-4-opus',   // Claude 4 Opus (72.5% SWE-bench, best coding)
+  'anthropic/claude-4-sonnet', // Claude 4 Sonnet (hybrid reasoning)
+  'anthropic/claude-3.5-sonnet', // Claude 3.5 Sonnet
+  'anthropic/claude-3-opus',   // Claude 3 Opus
 
-  // Google
-  'google/gemini-pro-1.5',       // Gemini 1.5 Pro
-  'google/gemini-flash-1.5',     // Gemini 1.5 Flash
+  // Google (2025 Models)
+  'google/gemini-2.5-pro',     // Gemini 2.5 Pro (1M context, 86.4 GPQA)
+  'google/gemini-2.0-pro',     // Gemini 2.0 Pro
   'google/gemini-2.0-flash-exp:free', // Gemini 2.0 Flash experimental
+  'google/gemini-pro-1.5',     // Gemini 1.5 Pro
 
   // Meta
   'meta-llama/llama-3.1-405b-instruct', // Llama 3.1 405B
@@ -23,16 +26,17 @@ export const FLAGSHIP_MODEL_IDS = [
   'meta-llama/llama-3.2-90b-vision-instruct', // Llama 3.2 Vision
 
   // Mistral
-  'mistralai/mistral-large',    // Mistral Large
-  'mistralai/mistral-medium',   // Mistral Medium
+  'mistralai/mistral-large',   // Mistral Large
+  'mistralai/mixtral-8x22b',   // Mixtral 8x22B
 
   // xAI
-  'x-ai/grok-2',                // Grok 2
-  'x-ai/grok-2-vision',         // Grok 2 Vision
+  'x-ai/grok-2',               // Grok 2
+  'x-ai/grok-2-vision',        // Grok 2 Vision
 
-  // Qwen (Alibaba)
+  // Alibaba
+  'qwen/qwen3-235b',           // Qwen3 235B (262K context, reasoning)
   'qwen/qwen-2.5-72b-instruct', // Qwen 2.5 72B
-  'qwen/qwq-32b-preview',       // QwQ reasoning model
+  'qwen/qwq-32b-preview',      // QwQ reasoning model
 
   // Cohere
   'cohere/command-r-plus',     // Command R+

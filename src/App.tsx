@@ -37,13 +37,13 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/ai-studio" />} />
-      <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/ai-studio" />} />
+      <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/ffa" />} />
+      <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/ffa" />} />
       <Route path="/pricing" element={<PricingPage />} />
 
       {/* Protected Routes with Layout */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/ai-studio" element={<AIStudio />} />
+        <Route path="/ffa" element={<AIStudio />} />
         <Route path="/llm-config" element={<LLMConfigPage />} />
       </Route>
 

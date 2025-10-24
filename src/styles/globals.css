@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+/* Font imports - using similar web fonts as fallbacks */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Bebas+Neue&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -29,11 +30,11 @@
   }
 
   html {
-    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-family: 'FK Grotesk', 'Inter', system-ui, sans-serif;
   }
 
   body {
-    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-family: 'FK Grotesk', 'Inter', system-ui, sans-serif;
   }
 
   .dark {
@@ -90,6 +91,16 @@
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/50;
+  }
+
+  /* Font utilities for Youth display font */
+  .font-youth {
+    font-family: 'Youth', 'Bebas Neue', sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  .font-fk {
+    font-family: 'FK Grotesk', 'Inter', system-ui, sans-serif;
   }
 }
 

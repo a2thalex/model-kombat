@@ -12,13 +12,22 @@ import {
   User,
   Crown,
   Activity,
-  Home,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  type LucideIcon
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/utils/cn'
 import { useToast } from '@/hooks/use-toast'
+
+interface NavigationItem {
+  name: string
+  href: string
+  icon: LucideIcon
+  description: string
+  badge?: string
+  badgeColor?: string
+}
 
 export default function MainLayout() {
   const { user, signOut, isAuthenticated } = useAuthStore()
@@ -52,14 +61,12 @@ export default function MainLayout() {
     }
   }
 
-  const navigation = [
+  const navigation: NavigationItem[] = [
     {
-      name: 'AI Studio',
-      href: '/ai-studio',
+      name: 'FFA',
+      href: '/ffa',
       icon: Brain,
-      description: 'Refine with multiple AI models',
-      badge: 'NEW',
-      badgeColor: 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+      description: 'Free-For-All: Refine with multiple AI models'
     },
     {
       name: 'Model Config',
@@ -85,7 +92,7 @@ export default function MainLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Logo */}
-            <Link to="/ai-studio" className="flex items-center space-x-3 group">
+            <Link to="/ffa" className="flex items-center space-x-3 group">
               <div className="p-2 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl transition-transform group-hover:scale-110">
                 <Zap className="h-5 w-5 text-white" />
               </div>

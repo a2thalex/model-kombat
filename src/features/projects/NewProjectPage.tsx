@@ -70,9 +70,9 @@ export default function NewProjectPage() {
     name: '',
     description: '',
     maxRefinementRounds: 3,
-    refinerModelId: config?.defaultRefinerModel || '',
+    refinerModelId: config?.defaultRefinerId || '',
     competitorModelIds: [] as string[],
-    judgeModelId: config?.defaultJudgeModel || '',
+    judgeModelId: config?.defaultJudgeId || '',
     judgingCriteria: {
       relevance: 25,
       accuracy: 25,

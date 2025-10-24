@@ -58,19 +58,20 @@ export default function LLMConfigPage() {
 
   // Populate API key field when config loads
   useEffect(() => {
-    if (config?.openRouterApiKey && !apiKey) {
+    if (config?.openRouterApiKey) {
       // Deobfuscate and set the saved API key
       const savedKey = config.openRouterApiKey
       // The key is obfuscated, we need to deobfuscate it for display
       try {
         const deobfuscated = atob(savedKey.split('').reverse().join(''))
         setApiKey(deobfuscated)
-      } catch {
+        setHasUnsavedKey(false) // Mark as saved
+      } catch (error) {
         // If deobfuscation fails, leave field empty
-        console.log('Could not restore saved API key')
+        console.error('Could not restore saved API key:', error)
       }
     }
-  }, [config])
+  }, [config?.openRouterApiKey])
 
   const handleSaveApiKey = async () => {
     if (!apiKey.trim()) return
@@ -110,8 +111,24 @@ export default function LLMConfigPage() {
     config?.enabledModelIds?.includes(model.id)
   )
 
+  // Filter out audio-only or non-text models for refinement
+  const textCapableModels = enabledModels.filter(model => {
+    // Exclude models that are purely audio/speech models
+    const modelIdLower = model.id.toLowerCase()
+    const isAudioModel = modelIdLower.includes('whisper') ||
+                        modelIdLower.includes('tts') ||
+                        modelIdLower.includes('speech') ||
+                        modelIdLower.includes('audio')
+
+    // Include only models that support text generation
+    const hasTextOutput = !model.architecture?.output_modalities ||
+                         model.architecture?.output_modalities?.includes('text')
+
+    return !isAudioModel && hasTextOutput
+  })
+
   // Get JSON-capable models for judge selection
-  const jsonCapableModels = enabledModels.filter(model =>
+  const jsonCapableModels = textCapableModels.filter(model =>
     // Check if model supports response_format or structured_outputs parameter
     model.supported_parameters?.includes('response_format') ||
     model.supported_parameters?.includes('structured_outputs') ||
@@ -140,14 +157,7 @@ export default function LLMConfigPage() {
     return `${(length / 1_000).toFixed(0)}K`
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
-  }
-
+  // Don't block the entire UI while loading
   return (
     <div>
       <div className="mb-6">
@@ -263,17 +273,22 @@ export default function LLMConfigPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Model Catalog
-              {models.filter(m => isFlagshipModel(m.id)).length > 0 && (
+              {loading && (
+                <LoadingSpinner size="sm" />
+              )}
+              {!loading && models.filter(m => isFlagshipModel(m.id)).length > 0 && (
                 <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 gap-1">
                   <Crown className="h-3 w-3" />
-                  {models.filter(m => isFlagshipModel(m.id)).length} Flagship Models Auto-Enabled
+                  {models.filter(m => isFlagshipModel(m.id)).length} Flagship Models Available
                 </Badge>
               )}
             </CardTitle>
             <CardDescription>
-              {models.length > 0
-                ? `${models.length} models available, ${enabledModels.length} enabled`
-                : 'Available models will be displayed here after connecting to OpenRouter'}
+              {loading
+                ? 'Loading configuration...'
+                : models.length > 0
+                  ? `${models.length} models available, ${enabledModels.length} enabled`
+                  : 'Available models will be displayed here after connecting to OpenRouter'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -336,7 +351,12 @@ export default function LLMConfigPage() {
             </div>
 
             {/* Model table or empty state */}
-            {models.length > 0 ? (
+            {isFetchingCatalog && models.length === 0 ? (
+              <div className="border rounded-lg p-8 text-center">
+                <LoadingSpinner size="lg" className="mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading models from OpenRouter...</p>
+              </div>
+            ) : models.length > 0 ? (
               <div className="border rounded-lg overflow-hidden">
                 <div className="max-h-96 overflow-y-auto">
                   <table className="w-full">
@@ -368,7 +388,7 @@ export default function LLMConfigPage() {
                               </div>
                             </td>
                             <td className="text-center p-3 text-sm">
-                              {formatContextLength(model.context_length)}
+                              {model.context_length ? formatContextLength(model.context_length) : 'N/A'}
                             </td>
                             <td className="text-center p-3">
                               <div className="flex justify-center gap-1">
@@ -393,8 +413,14 @@ export default function LLMConfigPage() {
                             </td>
                             <td className="text-center p-3 text-xs">
                               <div className="flex flex-col items-center">
-                                <span>In: {formatPrice(model.pricing.prompt)}</span>
-                                <span>Out: {formatPrice(model.pricing.completion)}</span>
+                                {model.pricing ? (
+                                  <>
+                                    <span>In: {formatPrice(model.pricing.prompt)}</span>
+                                    <span>Out: {formatPrice(model.pricing.completion)}</span>
+                                  </>
+                                ) : (
+                                  <span>N/A</span>
+                                )}
                               </div>
                             </td>
                             <td className="text-center p-3">
@@ -450,12 +476,12 @@ export default function LLMConfigPage() {
                 </label>
                 <select
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={enabledModels.length === 0}
+                  disabled={textCapableModels.length === 0}
                   value={config?.defaultRefinerId || 'openrouter/auto'}
                   onChange={(e) => setDefaultRefiner(e.target.value)}
                 >
                   <option value="openrouter/auto">openrouter/auto (Automatic selection)</option>
-                  {enabledModels.map(model => (
+                  {textCapableModels.map(model => (
                     <option key={model.id} value={model.id}>
                       {model.name}
                     </option>

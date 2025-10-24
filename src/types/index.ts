@@ -207,8 +207,6 @@ export interface LLMConfig {
   enabledModelIds: string[]
   defaultRefinerId?: string
   defaultJudgeId?: string
-  defaultRefinerModel?: string
-  defaultJudgeModel?: string
   defaultRefinementRounds: number
   lastCatalogSync?: Date
   catalogLastFetched?: string

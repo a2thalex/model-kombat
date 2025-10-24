@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Label } from '@/components/ui/label'
@@ -50,21 +49,21 @@ import {
   Cpu,
   BarChart3,
   Plus,
-  Trash2,
   Eye,
   EyeOff,
   AlertCircle,
   History,
   PlayCircle,
-  X
+  X,
+  ChevronUp,
+  Sliders
 } from 'lucide-react'
 import { useLLMConfigStore } from '@/store/llm-config-hybrid'
 import { openRouterService } from '@/services/openrouter'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/utils/cn'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { FLAGSHIP_MODEL_IDS, getFlagshipModels, getModelForRound, isFlagshipModel, groupModelsByProvider } from '@/utils/flagship-models'
-import ModelSelector from '@/components/model-selector/ModelSelector'
 
 interface RefinementRound {
   id: string
@@ -79,15 +78,6 @@ interface RefinementRound {
   duration?: number // Time taken in ms
 }
 
-interface AIStudioSettings {
-  autoRounds: number
-  useOnlyFlagship: boolean
-  randomizeOrder: boolean
-  temperature: number
-  showDetailedCritiques: boolean
-  autoEnhancePrompt: boolean
-}
-
 export default function AIStudio() {
   const navigate = useNavigate()
   const { config, models, loadConfig } = useLLMConfigStore()
@@ -98,20 +88,16 @@ export default function AIStudio() {
   const [rounds, setRounds] = useState<RefinementRound[]>([])
   const [isRunning, setIsRunning] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [selectedTab, setSelectedTab] = useState('compose')
   const [overallProgress, setOverallProgress] = useState(0)
-  const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [showFullContent, setShowFullContent] = useState<Record<string, boolean>>({})
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
-  // Settings state
-  const [settings, setSettings] = useState<AIStudioSettings>({
-    autoRounds: 3,
-    useOnlyFlagship: true,
-    randomizeOrder: false,
-    temperature: 0.7,
-    showDetailedCritiques: true,
-    autoEnhancePrompt: false,
-  })
+  // Settings state - simplified
+  const [autoRounds, setAutoRounds] = useState(3)
+  const [useOnlyFlagship, setUseOnlyFlagship] = useState(true)
+  const [temperature, setTemperature] = useState(0.7)
+  const [showDetailedCritiques, setShowDetailedCritiques] = useState(false)
+  const [autoEnhancePrompt, setAutoEnhancePrompt] = useState(false)
 
   useEffect(() => {
     loadConfig()
@@ -123,20 +109,20 @@ export default function AIStudio() {
     [models]
   )
 
-  const availableModels = useMemo(() => {
-    if (selectedModels.length > 0) {
-      return models.filter(m => selectedModels.includes(m.id))
+  // Get only enabled models from config
+  const enabledModels = useMemo(() => {
+    if (!config?.enabledModelIds || config.enabledModelIds.length === 0) {
+      return []
     }
-    if (settings.useOnlyFlagship) {
-      return flagshipModels.length > 0 ? flagshipModels : models
-    }
-    return models
-  }, [models, flagshipModels, selectedModels, settings.useOnlyFlagship])
+    return models.filter(model => config.enabledModelIds.includes(model.id))
+  }, [models, config])
 
-  const groupedModels = useMemo(() =>
-    groupModelsByProvider(availableModels),
-    [availableModels]
-  )
+  const availableModels = useMemo(() => {
+    if (useOnlyFlagship) {
+      return enabledModels.filter(model => isFlagshipModel(model.id))
+    }
+    return enabledModels
+  }, [enabledModels, useOnlyFlagship])
 
   const enhancePrompt = async () => {
     if (!question.trim()) return
@@ -155,8 +141,13 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
 - Well-structured
 - Optimized for getting comprehensive answers`
 
+      // Use a good general model for prompt enhancement
+      const enhanceModel = flagshipModels.find(m =>
+        m.id.includes('claude') || m.id.includes('gpt-4')
+      )?.id || flagshipModels[0]?.id || 'openrouter/auto'
+
       const response = await openRouterService.createChatCompletion({
-        model: flagshipModels[0]?.id || 'openrouter/auto',
+        model: enhanceModel,
         messages: [{ role: 'user', content: enhancementPrompt }],
         temperature: 0.7,
       })
@@ -230,15 +221,11 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
 
     setIsRunning(true)
     setRounds([])
-    setSelectedTab('results')
     setOverallProgress(0)
 
     try {
       // Get models for this run
       let modelsToUse = [...availableModels]
-      if (settings.randomizeOrder) {
-        modelsToUse = modelsToUse.sort(() => Math.random() - 0.5)
-      }
 
       // Generate initial answer with first model
       const firstModel = modelsToUse[0]
@@ -261,7 +248,7 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
       const response = await openRouterService.createChatCompletion({
         model: firstModel.id,
         messages: [{ role: 'user', content: promptToUse }],
-        temperature: settings.temperature,
+        temperature,
       })
 
       const initialAnswer = response.choices[0].message.content
@@ -273,7 +260,7 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
           : r
       ))
 
-      setOverallProgress(Math.floor((1 / (settings.autoRounds + 1)) * 100))
+      setOverallProgress(Math.floor((1 / (autoRounds + 1)) * 100))
 
       // Start refinement rounds
       await refineWithModels(initialAnswer, promptToUse, 1, modelsToUse)
@@ -296,7 +283,7 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
     roundNumber: number,
     modelsToUse: typeof availableModels
   ) => {
-    if (roundNumber > settings.autoRounds) return
+    if (roundNumber > autoRounds) return
 
     // Select next model
     const modelIndex = roundNumber % modelsToUse.length
@@ -341,7 +328,7 @@ ENHANCED ANSWER:
       const response = await openRouterService.createChatCompletion({
         model: model.id,
         messages: [{ role: 'user', content: critiquePrompt }],
-        temperature: settings.temperature,
+        temperature,
       })
 
       const responseText = response.choices[0].message.content
@@ -362,7 +349,7 @@ ENHANCED ANSWER:
           : r
       ))
 
-      setOverallProgress(Math.floor(((roundNumber + 1) / (settings.autoRounds + 1)) * 100))
+      setOverallProgress(Math.floor(((roundNumber + 1) / (autoRounds + 1)) * 100))
 
       // Continue refinement
       await refineWithModels(improvedAnswer, originalQuestion, roundNumber + 1, modelsToUse)
@@ -415,16 +402,6 @@ ENHANCED ANSWER:
     return colors[provider] || 'bg-gray-100 text-gray-700 border-gray-200'
   }
 
-  const addModelToSelection = (modelId: string) => {
-    if (!selectedModels.includes(modelId)) {
-      setSelectedModels(prev => [...prev, modelId])
-    }
-  }
-
-  const removeModelFromSelection = (modelId: string) => {
-    setSelectedModels(prev => prev.filter(id => id !== modelId))
-  }
-
   const formatDuration = (ms?: number) => {
     if (!ms) return ''
     return `${(ms / 1000).toFixed(1)}s`
@@ -433,7 +410,7 @@ ENHANCED ANSWER:
   return (
     <TooltipProvider>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Modern Gradient Header */}
+        {/* Header */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 p-1">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 via-transparent to-orange-600/20 animate-pulse"></div>
           <div className="relative bg-background/95 backdrop-blur rounded-[calc(1.5rem-4px)] p-8">
@@ -444,10 +421,10 @@ ENHANCED ANSWER:
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    AI Studio
+                    FFA (Free-For-All)
                   </h1>
                   <p className="text-muted-foreground mt-1">
-                    Automatic iterative refinement powered by AI
+                    Multi-model AI competition and refinement
                   </p>
                 </div>
               </div>
@@ -463,670 +440,165 @@ ENHANCED ANSWER:
                   </CardContent>
                 </Card>
 
-                <Card className="border-2">
-                  <CardContent className="flex items-center gap-2 p-3">
-                    <BarChart3 className="h-5 w-5 text-blue-500" />
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">{rounds.length}</div>
-                      <div className="text-xs text-muted-foreground">Refinements</div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => navigate('/llm-config')}
+                  className="h-12 w-12"
+                >
+                  <Settings className="h-5 w-5" />
+                </Button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Main Interface Tabs */}
-        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-14 bg-muted/50">
-            <TabsTrigger
-              value="compose"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white"
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Compose
-            </TabsTrigger>
-            <TabsTrigger
-              value="results"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white"
-            >
-              <Trophy className="h-4 w-4 mr-2" />
-              Results
-              {rounds.length > 0 && (
-                <Badge className="ml-2" variant="secondary">{rounds.length}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="models"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white"
-            >
-              <Bot className="h-4 w-4 mr-2" />
-              Models
-            </TabsTrigger>
-            <TabsTrigger
-              value="settings"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="compose" className="space-y-6">
-            <Card className="border-2 shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Wand2 className="h-5 w-5 text-purple-600" />
-                    Your Question
-                  </span>
-                  {question.trim() && !promptEnhanced && (
-                    <Button
-                      size="sm"
-                      variant={settings.autoEnhancePrompt ? "default" : "outline"}
-                      onClick={enhancePrompt}
-                      disabled={isEnhancing}
-                      className="gap-2"
-                    >
-                      {isEnhancing ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Enhancing...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3 w-3" />
-                          Enhance Prompt
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Textarea
-                  placeholder="Ask anything... Be as specific as possible for best results."
-                  value={question}
-                  onChange={(e) => {
-                    setQuestion(e.target.value)
-                    setPromptEnhanced(false)
-                    setEnhancedPrompt('')
-                  }}
-                  className="min-h-[150px] text-lg resize-none"
-                  disabled={isRunning}
-                />
-
-                {promptEnhanced && enhancedPrompt && (
-                  <div className="relative p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-xl border-2 border-purple-200 dark:border-purple-800">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-purple-600" />
-                      <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">Enhanced Version</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="ml-auto h-6 px-2"
-                        onClick={() => {
-                          setPromptEnhanced(false)
-                          setEnhancedPrompt('')
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <p className="text-sm text-purple-800 dark:text-purple-200">{enhancedPrompt}</p>
-                  </div>
-                )}
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                      <Label className="text-sm font-medium min-w-[100px]">Refinements:</Label>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSettings(s => ({ ...s, autoRounds: Math.max(1, s.autoRounds - 1) }))}
-                          disabled={isRunning}
-                          className="h-8 w-8 p-0"
-                        >
-                          -
-                        </Button>
-                        <div className="w-12 text-center font-bold text-lg">{settings.autoRounds}</div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSettings(s => ({ ...s, autoRounds: Math.min(10, s.autoRounds + 1) }))}
-                          disabled={isRunning}
-                          className="h-8 w-8 p-0"
-                        >
-                          +
-                        </Button>
-                      </div>
-                      <Badge variant="secondary" className="gap-1">
-                        <Gauge className="h-3 w-3" />
-                        {settings.autoRounds * Math.min(availableModels.length, 5)} AI Passes
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <Label className="text-sm font-medium min-w-[100px]">Temperature:</Label>
-                      <Slider
-                        value={[settings.temperature]}
-                        onValueChange={(v) => setSettings(s => ({ ...s, temperature: v[0] }))}
-                        min={0}
-                        max={1}
-                        step={0.1}
-                        className="w-32"
-                        disabled={isRunning}
-                      />
-                      <span className="text-sm font-mono w-10">{settings.temperature}</span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="h-4 w-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-xs">Higher values make output more creative but less focused</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-
-                  <Button
-                    size="lg"
-                    onClick={generateAndRefine}
-                    disabled={isRunning || (!question.trim() && !enhancedPrompt.trim())}
-                    className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg"
-                  >
-                    {isRunning ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Refining... {Math.round(overallProgress)}%
-                      </>
-                    ) : (
-                      <>
-                        <PlayCircle className="h-5 w-5" />
-                        Generate & Refine
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {isRunning && (
-                  <Progress value={overallProgress} className="h-2" />
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Quick Start Examples */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <BookOpen className="h-4 w-4" />
-                  Quick Start Examples
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {[
-                    'Explain quantum entanglement simply',
-                    'How to build a successful startup',
-                    'Best practices for machine learning',
-                    'Future of renewable energy',
-                    'Tips for effective communication',
-                    'Understanding cryptocurrency basics'
-                  ].map((example) => (
-                    <Button
-                      key={example}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setQuestion(example)
-                        if (settings.autoEnhancePrompt) {
-                          enhancePrompt()
-                        }
-                      }}
-                      className="justify-start text-xs hover:bg-purple-50 dark:hover:bg-purple-950/20"
-                    >
-                      <ArrowRight className="h-3 w-3 mr-1" />
-                      {example}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="results" className="space-y-6">
-            {rounds.length === 0 ? (
-              <Card className="border-2 border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <div className="p-4 bg-muted rounded-full mb-4">
-                    <Trophy className="h-12 w-12 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">No Results Yet</h3>
-                  <p className="text-sm text-muted-foreground text-center max-w-sm">
-                    Enter a question and click "Generate & Refine" to see iterative improvements here
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {/* Best Answer Highlight */}
-                {getBestAnswer() && (
-                  <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 shadow-xl">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span className="flex items-center gap-2">
-                          <Award className="h-6 w-6 text-purple-600" />
-                          Best Answer
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
-                            {getBestAnswer()?.quality}% Quality
-                          </Badge>
-                          {getBestAnswer()?.duration && (
-                            <Badge variant="outline" className="gap-1">
-                              <Timer className="h-3 w-3" />
-                              {formatDuration(getBestAnswer()?.duration)}
-                            </Badge>
-                          )}
-                        </div>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="max-h-[400px] pr-4">
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{getBestAnswer()?.content}</p>
-                      </ScrollArea>
-                      <Separator className="my-4" />
-                      <div className="flex items-center justify-between">
-                        <Badge variant="outline" className={cn("gap-1", getProviderColor(getBestAnswer()?.provider || ''))}>
-                          {getProviderIcon(getBestAnswer()?.provider || '')}
-                          {getBestAnswer()?.modelName}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCopy(getBestAnswer()?.content || '', 'best')}
-                          className="gap-2"
-                        >
-                          {copiedId === 'best' ? (
-                            <>
-                              <Check className="h-4 w-4" />
-                              Copied!
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-4 w-4" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Refinement History */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <History className="h-5 w-5" />
-                      Refinement History
-                    </CardTitle>
-                    <CardDescription>
-                      Track the evolution of your answer through multiple AI models
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[600px] pr-4">
-                      <div className="space-y-4">
-                        {rounds.map((round, index) => (
-                          <Card
-                            key={round.id}
-                            className={cn(
-                              "transition-all hover:shadow-lg",
-                              round.isRefining && "opacity-60 animate-pulse",
-                              round.quality === getBestAnswer()?.quality && "ring-2 ring-purple-500"
-                            )}
-                          >
-                            <CardHeader className="pb-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <Badge variant="outline" className="gap-1">
-                                    Round {index + 1}
-                                  </Badge>
-                                  <Badge className={cn("gap-1", getProviderColor(round.provider || ''))}>
-                                    {getProviderIcon(round.provider || '')}
-                                    {round.modelName}
-                                  </Badge>
-                                  {isFlagshipModel(round.modelId) && (
-                                    <Tooltip>
-                                      <TooltipTrigger>
-                                        <Crown className="h-4 w-4 text-yellow-500" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        Flagship Model
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {round.quality && (
-                                    <Badge variant="outline" className="gap-1">
-                                      <Star className="h-3 w-3 text-yellow-500" />
-                                      {round.quality}%
-                                    </Badge>
-                                  )}
-                                  {round.duration && (
-                                    <Badge variant="outline" className="gap-1">
-                                      <Timer className="h-3 w-3" />
-                                      {formatDuration(round.duration)}
-                                    </Badge>
-                                  )}
-                                  {!round.isRefining && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setShowFullContent(prev => ({
-                                        ...prev,
-                                        [round.id]: !prev[round.id]
-                                      }))}
-                                    >
-                                      {showFullContent[round.id] ? (
-                                        <EyeOff className="h-4 w-4" />
-                                      ) : (
-                                        <Eye className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  )}
-                                  {!round.isRefining && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleCopy(round.content, round.id)}
-                                    >
-                                      {copiedId === round.id ? (
-                                        <Check className="h-4 w-4" />
-                                      ) : (
-                                        <Copy className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              {settings.showDetailedCritiques && round.critique && (
-                                <div className="mb-3 p-3 bg-muted rounded-lg">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <TrendingUp className="h-3 w-3" />
-                                    <span className="text-xs font-semibold">Improvements Made</span>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">{round.critique}</p>
-                                </div>
-                              )}
-
-                              {round.isRefining ? (
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span className="text-sm">Refining answer...</span>
-                                </div>
-                              ) : (
-                                <p className={cn(
-                                  "text-sm leading-relaxed whitespace-pre-wrap",
-                                  !showFullContent[round.id] && "line-clamp-4"
-                                )}>
-                                  {round.content}
-                                </p>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          <TabsContent value="models" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Available Models */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Bot className="h-5 w-5" />
-                    Available Models
-                  </CardTitle>
-                  <CardDescription>
-                    Select specific models for refinement
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <ModelSelector
-                      models={models}
-                      selectedModelId=""
-                      onSelectModel={(modelId) => addModelToSelection(modelId)}
-                      placeholder="Add a model..."
-                      className="flex-1"
-                      disabled={isRunning}
-                    />
-                  </div>
-
-                  {selectedModels.length > 0 && (
+        {/* Main Question Card with inline settings */}
+        <Card className="border-2 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-purple-600" />
+                Your Question
+              </span>
+              {question.trim() && !promptEnhanced && (
+                <Button
+                  size="sm"
+                  variant={autoEnhancePrompt ? "default" : "outline"}
+                  onClick={enhancePrompt}
+                  disabled={isEnhancing}
+                  className="gap-2"
+                >
+                  {isEnhancing ? (
                     <>
-                      <Separator />
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Selected Models ({selectedModels.length})</Label>
-                        <div className="space-y-2">
-                          {selectedModels.map(modelId => {
-                            const model = models.find(m => m.id === modelId)
-                            if (!model) return null
-                            const provider = modelId.split('/')[0]
-
-                            return (
-                              <div
-                                key={modelId}
-                                className="flex items-center justify-between p-2 rounded-lg border"
-                              >
-                                <div className="flex items-center gap-2">
-                                  {getProviderIcon(provider)}
-                                  <span className="text-sm">{model.name}</span>
-                                  {isFlagshipModel(modelId) && (
-                                    <Crown className="h-3 w-3 text-yellow-500" />
-                                  )}
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => removeModelFromSelection(modelId)}
-                                  disabled={isRunning}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )
-                          })}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedModels([])}
-                          disabled={isRunning}
-                          className="w-full"
-                        >
-                          Clear Selection
-                        </Button>
-                      </div>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Enhancing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3" />
+                      Enhance Prompt
                     </>
                   )}
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Textarea
+              placeholder="Ask anything... Be as specific as possible for best results."
+              value={question}
+              onChange={(e) => {
+                setQuestion(e.target.value)
+                setPromptEnhanced(false)
+                setEnhancedPrompt('')
+              }}
+              className="min-h-[150px] text-lg resize-none"
+              disabled={isRunning}
+            />
 
-                  {selectedModels.length === 0 && settings.useOnlyFlagship && (
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Info className="h-4 w-4" />
-                        <span>Using all flagship models automatically</span>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+            {promptEnhanced && enhancedPrompt && (
+              <div className="relative p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-xl border-2 border-purple-200 dark:border-purple-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">Enhanced Version</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto h-6 px-2"
+                    onClick={() => {
+                      setPromptEnhanced(false)
+                      setEnhancedPrompt('')
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+                <p className="text-sm text-purple-800 dark:text-purple-200">{enhancedPrompt}</p>
+              </div>
+            )}
 
-              {/* Flagship Models */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Crown className="h-5 w-5 text-yellow-500" />
-                      Flagship Models
-                    </span>
-                    <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
-                      {flagshipModels.length} Active
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    The best models from each provider
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-[400px] pr-4">
-                    <div className="space-y-4">
-                      {Object.entries(groupModelsByProvider(flagshipModels)).map(([provider, models]) => (
-                        <div key={provider}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {getProviderIcon(provider)}
-                            <span className="font-semibold capitalize">{provider}</span>
-                            <Badge variant="outline" className="text-xs ml-auto">
-                              {models.length} model{models.length > 1 ? 's' : ''}
-                            </Badge>
-                          </div>
-                          <div className="space-y-1">
-                            {models.map(model => (
-                              <div
-                                key={model.id}
-                                className={cn(
-                                  "p-2 rounded-lg border text-xs",
-                                  getProviderColor(provider)
-                                )}
-                              >
-                                <div className="font-medium">{model.name || model.id}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+            {/* Quick settings inline */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="rounds" className="text-sm">Refinement Rounds</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAutoRounds(Math.max(1, autoRounds - 1))}
+                    disabled={isRunning}
+                    className="h-8 w-8 p-0"
+                  >
+                    -
+                  </Button>
+                  <div className="w-12 text-center font-bold">{autoRounds}</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAutoRounds(Math.min(10, autoRounds + 1))}
+                    disabled={isRunning}
+                    className="h-8 w-8 p-0"
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
 
-                  {flagshipModels.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm">No flagship models detected</p>
-                      <p className="text-xs mt-1">Load the model catalog to enable auto-detection</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => navigate('/llm-config')}
-                        className="mt-3"
-                      >
-                        <Settings className="h-4 w-4 mr-2" />
-                        Configure Models
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="flagship" className="text-sm">Flagship Only</Label>
+                <Switch
+                  id="flagship"
+                  checked={useOnlyFlagship}
+                  onCheckedChange={setUseOnlyFlagship}
+                  disabled={isRunning}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="auto-enhance" className="text-sm">Auto Enhance</Label>
+                <Switch
+                  id="auto-enhance"
+                  checked={autoEnhancePrompt}
+                  onCheckedChange={setAutoEnhancePrompt}
+                  disabled={isRunning}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="critiques" className="text-sm">Show Critiques</Label>
+                <Switch
+                  id="critiques"
+                  checked={showDetailedCritiques}
+                  onCheckedChange={setShowDetailedCritiques}
+                />
+              </div>
             </div>
-          </TabsContent>
 
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  AI Studio Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure how refinement works
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="use-flagship">Use Only Flagship Models</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Limit refinement to the best models from each provider
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-flagship"
-                      checked={settings.useOnlyFlagship}
-                      onCheckedChange={(v) => setSettings(s => ({ ...s, useOnlyFlagship: v }))}
-                      disabled={isRunning}
-                    />
-                  </div>
+            {/* Advanced settings collapsible */}
+            <div className="border rounded-lg">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                className="w-full justify-between p-4"
+              >
+                <span className="flex items-center gap-2">
+                  <Sliders className="h-4 w-4" />
+                  Advanced Settings
+                </span>
+                {showAdvancedSettings ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
 
-                  <Separator />
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="randomize">Randomize Model Order</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Use models in random order for varied perspectives
-                      </p>
-                    </div>
-                    <Switch
-                      id="randomize"
-                      checked={settings.randomizeOrder}
-                      onCheckedChange={(v) => setSettings(s => ({ ...s, randomizeOrder: v }))}
-                      disabled={isRunning}
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="auto-enhance">Auto-Enhance Prompts</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Automatically optimize questions before processing
-                      </p>
-                    </div>
-                    <Switch
-                      id="auto-enhance"
-                      checked={settings.autoEnhancePrompt}
-                      onCheckedChange={(v) => setSettings(s => ({ ...s, autoEnhancePrompt: v }))}
-                      disabled={isRunning}
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-critiques">Show Detailed Critiques</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Display improvement points for each refinement round
-                      </p>
-                    </div>
-                    <Switch
-                      id="show-critiques"
-                      checked={settings.showDetailedCritiques}
-                      onCheckedChange={(v) => setSettings(s => ({ ...s, showDetailedCritiques: v }))}
-                    />
-                  </div>
-
-                  <Separator />
-
+              {showAdvancedSettings && (
+                <div className="p-4 pt-0 space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label>Temperature: {settings.temperature}</Label>
+                      <Label>Temperature: {temperature}</Label>
                       <Tooltip>
                         <TooltipTrigger>
                           <Info className="h-4 w-4 text-muted-foreground" />
@@ -1137,63 +609,277 @@ ENHANCED ANSWER:
                       </Tooltip>
                     </div>
                     <Slider
-                      value={[settings.temperature]}
-                      onValueChange={(v) => setSettings(s => ({ ...s, temperature: v[0] }))}
+                      value={[temperature]}
+                      onValueChange={(v) => setTemperature(v[0])}
                       min={0}
                       max={1}
                       step={0.1}
                       disabled={isRunning}
                     />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Focused</span>
-                      <span>Balanced</span>
-                      <span>Creative</span>
-                    </div>
                   </div>
+                </div>
+              )}
+            </div>
 
-                  <Separator />
+            <Separator />
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Refinement Rounds: {settings.autoRounds}</Label>
-                      <Badge variant="secondary">
-                        {settings.autoRounds * Math.min(availableModels.length, 5)} AI Passes
+            {/* Action buttons */}
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {availableModels.length === 0 ? (
+                  <>No models enabled. <Link to="/llm-config" className="underline">Configure models</Link></>
+                ) : (
+                  <Badge variant="secondary" className="gap-1">
+                    <Gauge className="h-3 w-3" />
+                    {autoRounds * Math.min(availableModels.length, 5)} AI Passes
+                  </Badge>
+                )}
+              </div>
+
+              <Button
+                size="lg"
+                onClick={generateAndRefine}
+                disabled={isRunning || (!question.trim() && !enhancedPrompt.trim()) || availableModels.length === 0}
+                className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg"
+              >
+                {isRunning ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Refining... {Math.round(overallProgress)}%
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="h-5 w-5" />
+                    Generate & Refine
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {isRunning && (
+              <Progress value={overallProgress} className="h-2" />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Examples */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              Quick Examples
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {[
+                'Explain quantum entanglement simply',
+                'How to build a successful startup',
+                'Best practices for machine learning',
+                'Future of renewable energy',
+                'Tips for effective communication',
+                'Understanding cryptocurrency basics'
+              ].map((example) => (
+                <Button
+                  key={example}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setQuestion(example)
+                    if (autoEnhancePrompt) {
+                      enhancePrompt()
+                    }
+                  }}
+                  className="justify-start text-xs hover:bg-purple-50 dark:hover:bg-purple-950/20"
+                >
+                  <ArrowRight className="h-3 w-3 mr-1" />
+                  {example}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Results Section - Always visible when there are results */}
+        {rounds.length > 0 && (
+          <div className="space-y-6">
+            {/* Best Answer */}
+            {getBestAnswer() && (
+              <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Award className="h-6 w-6 text-purple-600" />
+                      Best Answer
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+                        {getBestAnswer()?.quality}% Quality
                       </Badge>
+                      {getBestAnswer()?.duration && (
+                        <Badge variant="outline" className="gap-1">
+                          <Timer className="h-3 w-3" />
+                          {formatDuration(getBestAnswer()?.duration)}
+                        </Badge>
+                      )}
                     </div>
-                    <Slider
-                      value={[settings.autoRounds]}
-                      onValueChange={(v) => setSettings(s => ({ ...s, autoRounds: v[0] }))}
-                      min={1}
-                      max={10}
-                      step={1}
-                      disabled={isRunning}
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Quick (1)</span>
-                      <span>Balanced (5)</span>
-                      <span>Thorough (10)</span>
-                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="max-h-[400px] pr-4">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{getBestAnswer()?.content}</p>
+                  </ScrollArea>
+                  <Separator className="my-4" />
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className={cn("gap-1", getProviderColor(getBestAnswer()?.provider || ''))}>
+                      {getProviderIcon(getBestAnswer()?.provider || '')}
+                      {getBestAnswer()?.modelName}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopy(getBestAnswer()?.content || '', 'best')}
+                      className="gap-2"
+                    >
+                      {copiedId === 'best' ? (
+                        <>
+                          <Check className="h-4 w-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+            )}
 
-                <Separator />
+            {/* Refinement History */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Refinement History
+                </CardTitle>
+                <CardDescription>
+                  Track the evolution of your answer through multiple AI models
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="space-y-4">
+                    {rounds.map((round, index) => (
+                      <Card
+                        key={round.id}
+                        className={cn(
+                          "transition-all hover:shadow-lg",
+                          round.isRefining && "opacity-60 animate-pulse",
+                          round.quality === getBestAnswer()?.quality && "ring-2 ring-purple-500"
+                        )}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Badge variant="outline" className="gap-1">
+                                Round {index + 1}
+                              </Badge>
+                              <Badge className={cn("gap-1", getProviderColor(round.provider || ''))}>
+                                {getProviderIcon(round.provider || '')}
+                                {round.modelName}
+                              </Badge>
+                              {isFlagshipModel(round.modelId) && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Crown className="h-4 w-4 text-yellow-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Flagship Model
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {round.quality && (
+                                <Badge variant="outline" className="gap-1">
+                                  <Star className="h-3 w-3 text-yellow-500" />
+                                  {round.quality}%
+                                </Badge>
+                              )}
+                              {round.duration && (
+                                <Badge variant="outline" className="gap-1">
+                                  <Timer className="h-3 w-3" />
+                                  {formatDuration(round.duration)}
+                                </Badge>
+                              )}
+                              {!round.isRefining && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setShowFullContent(prev => ({
+                                    ...prev,
+                                    [round.id]: !prev[round.id]
+                                  }))}
+                                >
+                                  {showFullContent[round.id] ? (
+                                    <EyeOff className="h-4 w-4" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                              {!round.isRefining && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleCopy(round.content, round.id)}
+                                >
+                                  {copiedId === round.id ? (
+                                    <Check className="h-4 w-4" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          {showDetailedCritiques && round.critique && (
+                            <div className="mb-3 p-3 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-1">
+                                <TrendingUp className="h-3 w-3" />
+                                <span className="text-xs font-semibold">Improvements Made</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{round.critique}</p>
+                            </div>
+                          )}
 
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-2 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    Performance Tips
-                  </h4>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    <li>• Lower temperature for factual questions</li>
-                    <li>• Higher temperature for creative tasks</li>
-                    <li>• More rounds improve quality but take longer</li>
-                    <li>• Flagship models provide best results</li>
-                  </ul>
-                </div>
+                          {round.isRefining ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="text-sm">Refining answer...</span>
+                            </div>
+                          ) : (
+                            <p className={cn(
+                              "text-sm leading-relaxed whitespace-pre-wrap",
+                              !showFullContent[round.id] && "line-clamp-4"
+                            )}>
+                              {round.content}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </div>
     </TooltipProvider>
   )

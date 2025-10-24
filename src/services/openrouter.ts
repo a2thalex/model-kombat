@@ -72,7 +72,7 @@ class OpenRouterService {
         'X-Title': 'Model Kombat',
         'Content-Type': 'application/json',
       },
-      timeout: 60000, // 60 second timeout
+      timeout: 120000, // 120 second timeout for slower models
     })
   }
 
@@ -172,6 +172,14 @@ class OpenRouterService {
       throw new Error('OpenRouter client not initialized. Please set API key first.')
     }
 
+    // Debug logging for troubleshooting
+    console.log('OpenRouter API Request:', {
+      model: request.model,
+      messageCount: request.messages.length,
+      temperature: request.temperature,
+      hasApiKey: !!this.client
+    })
+
     try {
       if (request.stream && onStream) {
         return await this.createStreamingCompletion(request, onStream)
@@ -184,14 +192,22 @@ class OpenRouterService {
       return response.data
     } catch (error: any) {
       console.error('Chat completion failed:', error)
-      if (error.response?.status === 401) {
+      console.error('Error response:', error.response?.data)
+
+      if (error.response?.status === 400) {
+        const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || 'Invalid request'
+        console.error('400 Error details:', errorMsg)
+        throw new Error(`Bad Request: ${errorMsg}. Check your API key and model selection.`)
+      } else if (error.response?.status === 401) {
         throw new Error('Invalid API key. Please check your OpenRouter API key.')
       } else if (error.response?.status === 429) {
         throw new Error('Rate limit exceeded. Please try again later.')
       } else if (error.response?.status === 404) {
         throw new Error(`Model ${request.model} not found or not available.`)
+      } else if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timeout after 2 minutes. The model might be overloaded. Try a different model or try again later.')
       }
-      throw new Error(error.response?.data?.error?.message || 'Chat completion failed.')
+      throw new Error(error.response?.data?.error?.message || error.message || 'Chat completion failed.')
     }
   }
 

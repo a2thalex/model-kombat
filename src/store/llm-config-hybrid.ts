@@ -5,7 +5,6 @@ import { db, auth } from '@/services/firebase'
 import { openRouterService } from '@/services/openrouter'
 import { LLMConfig, OpenRouterModel } from '@/types'
 import { toast } from '@/hooks/use-toast'
-import { FLAGSHIP_MODEL_IDS } from '@/utils/flagship-models'
 
 interface LLMConfigState {
   // State
@@ -49,24 +48,35 @@ function getUserId(): string | null {
   return user?.uid || (import.meta.env.DEV ? 'dev-test-user' : null)
 }
 
-// Check if Firestore is available
+// Check if Firestore is available (with timeout for faster failure)
 async function isFirestoreAvailable(): Promise<boolean> {
   const userId = getUserId()
   if (!userId || !auth.currentUser) return false
 
-  try {
-    const docRef = doc(db, 'llm-configs', userId)
-    await getDoc(docRef)
-    return true
-  } catch (error: any) {
-    // Check if it's a 400 error (Firestore not initialized)
-    if (error?.code === 'failed-precondition' || error?.message?.includes('400')) {
-      console.log('Firestore not available, using localStorage')
-      return false
+  // Create a timeout promise
+  const timeoutPromise = new Promise<boolean>((resolve) => {
+    setTimeout(() => resolve(false), 2000) // 2 second timeout
+  })
+
+  // Create the Firestore check promise
+  const firestoreCheck = async (): Promise<boolean> => {
+    try {
+      const docRef = doc(db, 'llm-configs', userId)
+      await getDoc(docRef)
+      return true
+    } catch (error: any) {
+      // Check if it's a 400 error (Firestore not initialized)
+      if (error?.code === 'failed-precondition' || error?.message?.includes('400')) {
+        console.log('Firestore not available, using localStorage')
+        return false
+      }
+      // For other errors, still try Firestore
+      return true
     }
-    // For other errors, still try Firestore
-    return true
   }
+
+  // Race between timeout and Firestore check
+  return Promise.race([firestoreCheck(), timeoutPromise])
 }
 
 export const useLLMConfigStore = create<LLMConfigState>()(
@@ -81,18 +91,55 @@ export const useLLMConfigStore = create<LLMConfigState>()(
       lastError: null,
       storageMode: 'local',
 
-      // Load configuration - tries Firestore first, falls back to localStorage
+      // Load configuration - optimized for faster initial load
       loadConfig: async () => {
         const userId = getUserId()
-        if (!userId) return
+        if (!userId) {
+          set({ loading: false })
+          return
+        }
 
-        set({ loading: true, lastError: null })
+        // Get existing state from localStorage immediately
+        const existingState = get()
+        const hasLocalConfig = existingState.config?.openRouterApiKey
 
-        // Check if Firestore is available
-        const firestoreAvailable = await isFirestoreAvailable()
+        // If we have local config, use it immediately to avoid blocking
+        if (hasLocalConfig) {
+          const apiKey = deobfuscateKey(existingState.config!.openRouterApiKey!)
+          openRouterService.initialize(apiKey)
+          set({ loading: false, config: existingState.config })
 
-        if (firestoreAvailable && auth.currentUser) {
-          // Try Firestore first
+          // Debug: Log that we found and loaded the API key
+          console.log('Loaded saved API key from localStorage:', {
+            hasKey: !!existingState.config?.openRouterApiKey,
+            keyLength: existingState.config?.openRouterApiKey?.length || 0
+          })
+
+          // Check if models need refresh in background
+          const lastFetched = existingState.config?.catalogLastFetched
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+          if (!lastFetched || lastFetched < oneHourAgo) {
+            // Don't await - let it run in background
+            get().fetchModelCatalog().catch(console.error)
+          }
+        } else {
+          // Only show loading if we don't have local config
+          set({ loading: true, lastError: null })
+        }
+
+        // Skip Firestore check if not authenticated
+        if (!auth.currentUser) {
+          set({ storageMode: 'local', loading: false })
+          return
+        }
+
+        // Check Firestore in background (don't block UI)
+        isFirestoreAvailable().then(async (firestoreAvailable) => {
+          if (!firestoreAvailable || !auth.currentUser) {
+            set({ storageMode: 'local' })
+            return
+          }
+
           try {
             const docRef = doc(db, 'llm-configs', userId)
             const docSnap = await getDoc(docRef)
@@ -100,22 +147,22 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             if (docSnap.exists()) {
               const data = docSnap.data() as LLMConfig
 
-              // Initialize OpenRouter service if API key exists
-              if (data.openRouterApiKey) {
-                const apiKey = deobfuscateKey(data.openRouterApiKey)
-                openRouterService.initialize(apiKey)
+              // Only update if Firestore has newer data
+              const localLastModified = existingState.config?.catalogLastFetched
+              const firestoreLastModified = data.catalogLastFetched
 
-                // Try to fetch catalog
-                try {
-                  await get().fetchModelCatalog()
-                } catch (error) {
-                  console.error('Failed to fetch catalog on load:', error)
+              if (!localLastModified || (firestoreLastModified && firestoreLastModified > localLastModified)) {
+                // Initialize OpenRouter service if API key exists
+                if (data.openRouterApiKey) {
+                  const apiKey = deobfuscateKey(data.openRouterApiKey)
+                  openRouterService.initialize(apiKey)
                 }
+                set({ config: data, storageMode: 'firestore' })
+              } else {
+                set({ storageMode: 'firestore' })
               }
-
-              set({ config: data, storageMode: 'firestore' })
-            } else {
-              // Create default config in Firestore
+            } else if (!hasLocalConfig) {
+              // Only create default if we don't have local config
               const defaultConfig: LLMConfig = {
                 userId,
                 enabledModelIds: [],
@@ -124,25 +171,13 @@ export const useLLMConfigStore = create<LLMConfigState>()(
               await setDoc(docRef, defaultConfig)
               set({ config: defaultConfig, storageMode: 'firestore' })
             }
-
-            set({ loading: false })
-            return
           } catch (error) {
-            console.error('Firestore failed, falling back to localStorage:', error)
+            console.error('Firestore sync failed:', error)
+            set({ storageMode: 'local' })
           }
-        }
-
-        // Fallback to localStorage
-        set({ storageMode: 'local' })
-
-        // Load from localStorage (handled by Zustand persist)
-        const storedState = get()
-        if (storedState.config?.openRouterApiKey) {
-          const apiKey = deobfuscateKey(storedState.config.openRouterApiKey)
-          openRouterService.initialize(apiKey)
-        }
-
-        set({ loading: false })
+        }).finally(() => {
+          set({ loading: false })
+        })
       },
 
       // Save API key
@@ -182,6 +217,13 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           // Update local state (also persisted to localStorage)
           set({ config: updatedConfig })
 
+          // Debug: Check if it's actually saved
+          console.log('API Key saved:', {
+            storageMode: get().storageMode,
+            configSaved: !!updatedConfig.openRouterApiKey,
+            keyLength: obfuscatedKey.length
+          })
+
           toast({
             title: 'API Key Saved',
             description: `Configuration saved to ${get().storageMode === 'firestore' ? 'cloud' : 'local'} storage`,
@@ -204,7 +246,8 @@ export const useLLMConfigStore = create<LLMConfigState>()(
         set({ isTestingConnection: true, lastError: null })
 
         try {
-          const keyToTest = apiKey || (get().config?.openRouterApiKey ? deobfuscateKey(get().config.openRouterApiKey!) : '')
+          const config = get().config
+          const keyToTest = apiKey || (config?.openRouterApiKey ? deobfuscateKey(config.openRouterApiKey) : '')
 
           if (!keyToTest) {
             throw new Error('No API key provided')
@@ -245,35 +288,37 @@ export const useLLMConfigStore = create<LLMConfigState>()(
 
       // Fetch model catalog
       fetchModelCatalog: async (forceRefresh = false) => {
+        // Skip if already fetching
+        if (get().isFetchingCatalog) {
+          console.log('Already fetching catalog, skipping...')
+          return
+        }
+
+        // Check if we have recent models and skip if not forcing refresh
+        if (!forceRefresh) {
+          const lastFetched = get().config?.catalogLastFetched
+          if (lastFetched) {
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+            if (lastFetched > fiveMinutesAgo && get().models.length > 0) {
+              console.log('Models are fresh, skipping fetch')
+              return
+            }
+          }
+        }
+
         set({ isFetchingCatalog: true, lastError: null })
 
         try {
           const models = await openRouterService.fetchModelCatalog(forceRefresh)
           set({ models })
 
-          // Auto-enable flagship models
+          // Update catalog fetch time without auto-enabling any models
           const config = get().config
           if (config) {
-            // Find all flagship models from the fetched catalog
-            const flagshipModels = models.filter(model =>
-              FLAGSHIP_MODEL_IDS.some(flagshipId => {
-                const modelIdLower = model.id.toLowerCase()
-                const flagshipIdLower = flagshipId.toLowerCase()
-                // Check if the model ID matches or contains the flagship ID
-                return modelIdLower === flagshipIdLower ||
-                       modelIdLower.includes(flagshipIdLower.split('/')[1] || flagshipIdLower) ||
-                       flagshipIdLower.includes(modelIdLower.split('/')[1] || modelIdLower)
-              })
-            )
-
-            // Combine existing enabled models with flagship models
-            const existingEnabled = config.enabledModelIds || []
-            const flagshipIds = flagshipModels.map(m => m.id)
-            const allEnabledIds = [...new Set([...existingEnabled, ...flagshipIds])]
-
             const updatedConfig: LLMConfig = {
               ...config,
-              enabledModelIds: allEnabledIds,
+              // Keep existing enabled models (or empty array if none)
+              enabledModelIds: config.enabledModelIds || [],
               catalogLastFetched: new Date().toISOString(),
             }
 
@@ -289,17 +334,10 @@ export const useLLMConfigStore = create<LLMConfigState>()(
 
             set({ config: updatedConfig })
 
-            if (flagshipModels.length > 0) {
-              toast({
-                title: '🚀 Models Loaded & Flagship Models Enabled',
-                description: `Loaded ${models.length} models, auto-enabled ${flagshipModels.length} flagship models`,
-              })
-            } else {
-              toast({
-                title: 'Models Loaded',
-                description: `Loaded ${models.length} models from OpenRouter`,
-              })
-            }
+            toast({
+              title: '✅ Models Loaded',
+              description: `Loaded ${models.length} models from OpenRouter catalog`,
+            })
           } else {
             toast({
               title: 'Models Loaded',
@@ -355,7 +393,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
 
         const updatedConfig: LLMConfig = {
           ...config,
-          defaultRefinerModel: modelId,
+          defaultRefinerId: modelId,
         }
 
         // Try to save to Firestore if in firestore mode
@@ -378,7 +416,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
 
         const updatedConfig: LLMConfig = {
           ...config,
-          defaultJudgeModel: modelId,
+          defaultJudgeId: modelId,
         }
 
         // Try to save to Firestore if in firestore mode
