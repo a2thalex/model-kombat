@@ -52,6 +52,14 @@ export const useAuthStore = create<AuthState>()(
       initAuth: () => {
         set({ loading: true })
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          if (firebaseUser) {
+            console.log('Auth state changed - Firebase user:', {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL
+            })
+          }
           const user = mapFirebaseUser(firebaseUser)
           set({
             user,
@@ -94,7 +102,15 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true })
         try {
           const userCredential = await signInWithPopup(auth, googleProvider)
+          console.log('Firebase user data:', {
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            displayName: userCredential.user.displayName,
+            photoURL: userCredential.user.photoURL,
+            emailVerified: userCredential.user.emailVerified
+          })
           const user = mapFirebaseUser(userCredential.user)
+          console.log('Mapped user data:', user)
           set({ user, isAuthenticated: true })
         } catch (error) {
           console.error('Google sign in error:', error)

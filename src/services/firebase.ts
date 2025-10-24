@@ -35,7 +35,14 @@ export const db = getFirestore(app)
 
 // Auth providers
 export const googleProvider = new GoogleAuthProvider()
+googleProvider.addScope('profile')
+googleProvider.addScope('email')
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+})
+
 export const githubProvider = new GithubAuthProvider()
+githubProvider.addScope('user:email')
 
 // Enable offline persistence
 enableIndexedDbPersistence(db).catch((err) => {
