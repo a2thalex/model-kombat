@@ -371,24 +371,21 @@ export default function AuthPage() {
               ))}
             </div>
 
-            {/* Testimonial */}
+            {/* Platform Highlight */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1 }}
-              className="mt-12 p-6 rounded-2xl bg-white/5 backdrop-blur border border-white/10"
+              className="mt-12 p-6 rounded-2xl bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/30"
             >
-              <p className="text-gray-300 italic mb-4">
-                "Model Kombat transformed how we evaluate AI. The head-to-head competitions
-                give us insights we never had before."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">👨‍💻</div>
-                <div>
-                  <div className="font-semibold">Alex Chen</div>
-                  <div className="text-sm text-gray-400">CTO, TechCorp</div>
-                </div>
+              <div className="flex items-center gap-3 mb-3">
+                <Zap className="h-5 w-5 text-purple-400" />
+                <span className="font-semibold text-purple-300">Get Started in Seconds</span>
               </div>
+              <p className="text-gray-300 text-sm">
+                No credit card required. Free tier includes 100 comparisons per month.
+                Start testing AI models immediately after signup.
+              </p>
             </motion.div>
           </motion.div>
         </div>

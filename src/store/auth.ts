@@ -1,5 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth'
+import { auth, googleProvider, githubProvider } from '@/services/firebase'
 
 interface User {
   id: string
@@ -20,6 +29,17 @@ interface AuthState {
   signInWithGithub: () => Promise<void>
   signOut: () => Promise<void>
   setUser: (user: User | null) => void
+  initAuth: () => (() => void) | undefined
+}
+
+const mapFirebaseUser = (firebaseUser: FirebaseUser | null): User | null => {
+  if (!firebaseUser) return null
+  return {
+    id: firebaseUser.uid,
+    email: firebaseUser.email || '',
+    name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+    photoURL: firebaseUser.photoURL || undefined
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,16 +49,28 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       loading: false,
 
+      initAuth: () => {
+        set({ loading: true })
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          const user = mapFirebaseUser(firebaseUser)
+          set({
+            user,
+            isAuthenticated: !!user,
+            loading: false
+          })
+        })
+        return unsubscribe
+      },
+
       signInWithEmail: async (email: string, password: string) => {
         set({ loading: true })
         try {
-          // Simulate authentication - replace with actual Firebase auth
-          const mockUser: User = {
-            id: 'user-' + Date.now(),
-            email,
-            name: email.split('@')[0]
-          }
-          set({ user: mockUser, isAuthenticated: true })
+          const userCredential = await signInWithEmailAndPassword(auth, email, password)
+          const user = mapFirebaseUser(userCredential.user)
+          set({ user, isAuthenticated: true })
+        } catch (error) {
+          console.error('Sign in error:', error)
+          throw error
         } finally {
           set({ loading: false })
         }
@@ -47,13 +79,12 @@ export const useAuthStore = create<AuthState>()(
       signUpWithEmail: async (email: string, password: string) => {
         set({ loading: true })
         try {
-          // Simulate sign up - replace with actual Firebase auth
-          const mockUser: User = {
-            id: 'user-' + Date.now(),
-            email,
-            name: email.split('@')[0]
-          }
-          set({ user: mockUser, isAuthenticated: true })
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+          const user = mapFirebaseUser(userCredential.user)
+          set({ user, isAuthenticated: true })
+        } catch (error) {
+          console.error('Sign up error:', error)
+          throw error
         } finally {
           set({ loading: false })
         }
@@ -62,14 +93,12 @@ export const useAuthStore = create<AuthState>()(
       signInWithGoogle: async () => {
         set({ loading: true })
         try {
-          // Simulate Google sign in - replace with actual Firebase auth
-          const mockUser: User = {
-            id: 'google-' + Date.now(),
-            email: 'user@gmail.com',
-            name: 'Google User',
-            photoURL: 'https://via.placeholder.com/150'
-          }
-          set({ user: mockUser, isAuthenticated: true })
+          const userCredential = await signInWithPopup(auth, googleProvider)
+          const user = mapFirebaseUser(userCredential.user)
+          set({ user, isAuthenticated: true })
+        } catch (error) {
+          console.error('Google sign in error:', error)
+          throw error
         } finally {
           set({ loading: false })
         }
@@ -78,21 +107,25 @@ export const useAuthStore = create<AuthState>()(
       signInWithGithub: async () => {
         set({ loading: true })
         try {
-          // Simulate GitHub sign in - replace with actual Firebase auth
-          const mockUser: User = {
-            id: 'github-' + Date.now(),
-            email: 'user@github.com',
-            name: 'GitHub User',
-            photoURL: 'https://via.placeholder.com/150'
-          }
-          set({ user: mockUser, isAuthenticated: true })
+          const userCredential = await signInWithPopup(auth, githubProvider)
+          const user = mapFirebaseUser(userCredential.user)
+          set({ user, isAuthenticated: true })
+        } catch (error) {
+          console.error('GitHub sign in error:', error)
+          throw error
         } finally {
           set({ loading: false })
         }
       },
 
       signOut: async () => {
-        set({ user: null, isAuthenticated: false })
+        try {
+          await firebaseSignOut(auth)
+          set({ user: null, isAuthenticated: false })
+        } catch (error) {
+          console.error('Sign out error:', error)
+          throw error
+        }
       },
 
       setUser: (user) => {

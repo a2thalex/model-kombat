@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from './components/ui/toaster'
 import MainLayout from './components/layout/MainLayout'
 import LandingPage from './features/landing/LandingPage'
 import AuthPage from './features/auth/AuthPage'
+import PricingPage from './features/pricing/PricingPage'
 import AIStudio from './features/ai-studio/AIStudio'
 import LLMConfigPage from './features/llm-config/LLMConfigPage'
 import LoadingSpinner from './components/ui/loading-spinner'
@@ -37,6 +39,7 @@ function AppRoutes() {
       {/* Public Routes */}
       <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/ai-studio" />} />
       <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/ai-studio" />} />
+      <Route path="/pricing" element={<PricingPage />} />
 
       {/* Protected Routes with Layout */}
       <Route element={<ProtectedRoute />}>
@@ -51,6 +54,17 @@ function AppRoutes() {
 }
 
 function App() {
+  const { initAuth } = useAuthStore()
+
+  useEffect(() => {
+    const unsubscribe = initAuth()
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe()
+      }
+    }
+  }, [initAuth])
+
   return (
     <BrowserRouter>
       <AppRoutes />

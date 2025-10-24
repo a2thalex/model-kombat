@@ -39,9 +39,9 @@ import { motion } from 'framer-motion'
 
 const stats = [
   { label: 'AI Models', value: '200+', icon: Bot },
-  { label: 'API Calls/Month', value: '10M+', icon: Activity },
-  { label: 'Active Users', value: '50K+', icon: Users },
-  { label: 'Uptime', value: '99.9%', icon: CloudLightning }
+  { label: 'Competition Modes', value: '3', icon: Trophy },
+  { label: 'Model Providers', value: '15+', icon: Layers },
+  { label: 'Response Time', value: '<2s', icon: CloudLightning }
 ]
 
 const features = [
@@ -83,27 +83,21 @@ const features = [
   }
 ]
 
-const testimonials = [
+const useCases = [
   {
-    name: 'Sarah Chen',
-    role: 'AI Research Lead',
-    company: 'TechCorp',
-    content: 'Model Kombat transformed our AI evaluation process. The head-to-head competitions provide invaluable insights.',
-    avatar: '👩‍🔬'
+    title: 'Content Creation',
+    description: 'Compare models to find the best one for your creative writing, marketing copy, or technical documentation needs.',
+    icon: '✍️'
   },
   {
-    name: 'Michael Rodriguez',
-    role: 'CTO',
-    company: 'StartupAI',
-    content: 'The AI Studio feature alone saved us months of development. Iterative refinement is a game-changer.',
-    avatar: '👨‍💻'
+    title: 'Code Generation',
+    description: 'Test which AI produces the cleanest, most efficient code for your specific programming tasks and languages.',
+    icon: '💻'
   },
   {
-    name: 'Emily Watson',
-    role: 'Product Manager',
-    company: 'Innovation Labs',
-    content: 'Finally, a platform that makes comparing AI models transparent and objective. Essential for our workflow.',
-    avatar: '👩‍💼'
+    title: 'Data Analysis',
+    description: 'Identify the most accurate model for data interpretation, statistical analysis, and insight generation.',
+    icon: '📊'
   }
 ]
 
@@ -182,9 +176,9 @@ export default function LandingPage() {
 
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-gray-300 hover:text-white transition">Features</a>
-              <a href="#pricing" className="text-gray-300 hover:text-white transition">Pricing</a>
-              <a href="#testimonials" className="text-gray-300 hover:text-white transition">Testimonials</a>
-              <a href="https://docs.modelkombat.ai" className="text-gray-300 hover:text-white transition">Docs</a>
+              <a href="#use-cases" className="text-gray-300 hover:text-white transition">Use Cases</a>
+              <a href="/pricing" className="text-gray-300 hover:text-white transition">Pricing</a>
+              <a href="https://github.com/modelkombat" className="text-gray-300 hover:text-white transition">Docs</a>
             </div>
 
             <div className="flex items-center gap-4">
@@ -361,7 +355,7 @@ export default function LandingPage() {
               <h2 className="text-4xl font-bold mb-6">
                 AI Studio
                 <span className="block text-2xl text-gray-400 mt-2">
-                  Formerly Lazy Mode - Now Supercharged
+                  Automated Refinement Engine
                 </span>
               </h2>
               <p className="text-lg text-gray-300 mb-8">
@@ -455,43 +449,32 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-32 px-6">
+      {/* Use Cases */}
+      <section id="use-cases" className="py-32 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Trusted by AI Leaders
+                Perfect For Every Use Case
               </span>
             </h2>
             <p className="text-xl text-gray-400">
-              Join thousands of teams using Model Kombat to optimize AI performance
+              Discover how Model Kombat can optimize your AI workflows
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, i) => (
+            {useCases.map((useCase, i) => (
               <motion.div
-                key={testimonial.name}
+                key={useCase.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className="p-8 rounded-2xl bg-gradient-to-br from-white/5 to-white/10 backdrop-blur border border-white/10"
+                className="p-8 rounded-2xl bg-gradient-to-br from-white/5 to-white/10 backdrop-blur border border-white/10 hover:border-purple-500/50 transition-all"
               >
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="text-4xl">{testimonial.avatar}</div>
-                  <div>
-                    <div className="font-semibold">{testimonial.name}</div>
-                    <div className="text-sm text-gray-400">{testimonial.role}</div>
-                    <div className="text-xs text-purple-400">{testimonial.company}</div>
-                  </div>
-                </div>
-                <p className="text-gray-300 italic">"{testimonial.content}"</p>
-                <div className="flex gap-1 mt-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                  ))}
-                </div>
+                <div className="text-5xl mb-6">{useCase.icon}</div>
+                <h3 className="text-2xl font-semibold mb-4">{useCase.title}</h3>
+                <p className="text-gray-300">{useCase.description}</p>
               </motion.div>
             ))}
           </div>
