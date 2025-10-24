@@ -27,7 +27,6 @@ import {
   Loader2,
   Settings,
   Wand2,
-  Crown,
   Rocket,
   Star,
   TrendingUp,
@@ -63,7 +62,6 @@ import { openRouterService } from '@/services/openrouter'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/utils/cn'
 import { useNavigate, Link } from 'react-router-dom'
-import { FLAGSHIP_MODEL_IDS, getFlagshipModels, getModelForRound, isFlagshipModel, groupModelsByProvider } from '@/utils/flagship-models'
 
 interface RefinementRound {
   id: string
@@ -94,7 +92,6 @@ export default function AIStudio() {
 
   // Settings state - simplified
   const [autoRounds, setAutoRounds] = useState(3)
-  const [useOnlyFlagship, setUseOnlyFlagship] = useState(true)
   const [temperature, setTemperature] = useState(0.7)
   const [showDetailedCritiques, setShowDetailedCritiques] = useState(false)
   const [autoEnhancePrompt, setAutoEnhancePrompt] = useState(false)
@@ -103,26 +100,13 @@ export default function AIStudio() {
     loadConfig()
   }, [loadConfig])
 
-  // Get flagship and available models
-  const flagshipModels = useMemo(() =>
-    models.filter(model => isFlagshipModel(model.id)),
-    [models]
-  )
-
   // Get only enabled models from config
-  const enabledModels = useMemo(() => {
+  const availableModels = useMemo(() => {
     if (!config?.enabledModelIds || config.enabledModelIds.length === 0) {
       return []
     }
     return models.filter(model => config.enabledModelIds.includes(model.id))
   }, [models, config])
-
-  const availableModels = useMemo(() => {
-    if (useOnlyFlagship) {
-      return enabledModels.filter(model => isFlagshipModel(model.id))
-    }
-    return enabledModels
-  }, [enabledModels, useOnlyFlagship])
 
   const enhancePrompt = async () => {
     if (!question.trim()) return
@@ -142,9 +126,9 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
 - Optimized for getting comprehensive answers`
 
       // Use a good general model for prompt enhancement
-      const enhanceModel = flagshipModels.find(m =>
+      const enhanceModel = availableModels.find(m =>
         m.id.includes('claude') || m.id.includes('gpt-4')
-      )?.id || flagshipModels[0]?.id || 'openrouter/auto'
+      )?.id || availableModels[0]?.id || 'openrouter/auto'
 
       const response = await openRouterService.createChatCompletion({
         model: enhanceModel,
@@ -432,7 +416,7 @@ ENHANCED ANSWER:
               <div className="flex items-center gap-3">
                 <Card className="border-2">
                   <CardContent className="flex items-center gap-2 p-3">
-                    <Crown className="h-5 w-5 text-yellow-500" />
+                    <Bot className="h-5 w-5 text-blue-500" />
                     <div className="text-right">
                       <div className="text-2xl font-bold">{availableModels.length}</div>
                       <div className="text-xs text-muted-foreground">Active Models</div>
@@ -545,15 +529,6 @@ ENHANCED ANSWER:
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <Label htmlFor="flagship" className="text-sm">Flagship Only</Label>
-                <Switch
-                  id="flagship"
-                  checked={useOnlyFlagship}
-                  onCheckedChange={setUseOnlyFlagship}
-                  disabled={isRunning}
-                />
-              </div>
 
               <div className="flex items-center justify-between">
                 <Label htmlFor="auto-enhance" className="text-sm">Auto Enhance</Label>
@@ -791,16 +766,6 @@ ENHANCED ANSWER:
                                 {getProviderIcon(round.provider || '')}
                                 {round.modelName}
                               </Badge>
-                              {isFlagshipModel(round.modelId) && (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Crown className="h-4 w-4 text-yellow-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    Flagship Model
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               {round.quality && (
