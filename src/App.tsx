@@ -1,76 +1,54 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthState } from 'react-firebase-hooks/auth'
-import { auth } from './services/firebase'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from './components/ui/toaster'
 import MainLayout from './components/layout/MainLayout'
-import LoginPage from './features/auth/LoginPage'
-import ProjectsPage from './features/projects/ProjectsPage'
-import ProjectDetailPage from './features/projects/ProjectDetailPage'
-import NewProjectPage from './features/projects/NewProjectPage'
+import LandingPage from './features/landing/LandingPage'
+import AuthPage from './features/auth/AuthPage'
+import AIStudio from './features/ai-studio/AIStudio'
 import LLMConfigPage from './features/llm-config/LLMConfigPage'
-import LazyMode from './features/lazy-mode/LazyModeV3'
 import LoadingSpinner from './components/ui/loading-spinner'
+import { useAuthStore } from './store/auth'
+import './styles/globals.css'
 
-// TEMPORARY: Bypass auth for testing OpenRouter integration
-// Set to false once Firebase Auth is configured
-const BYPASS_AUTH = false
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />
+  }
+
+  return <>{children}</>
+}
 
 function App() {
-  const [user, loading] = useAuthState(auth)
-
-  // Development bypass for testing
-  if (BYPASS_AUTH && import.meta.env.DEV) {
-    return (
-      <>
-        <div className="bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium">
-          ⚠️ Development Mode: Authentication Bypassed - Firebase Auth setup pending
-        </div>
-        <Routes>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/lazy" replace />} />
-            <Route path="lazy" element={<LazyMode />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="projects/new" element={<NewProjectPage />} />
-            <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-            <Route path="llm-config" element={<LLMConfigPage />} />
-          </Route>
-        </Routes>
-        <Toaster />
-      </>
-    )
-  }
+  const { isAuthenticated, loading } = useAuthStore()
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center bg-black">
         <LoadingSpinner size="lg" />
       </div>
     )
   }
 
-  if (!user) {
-    return (
-      <>
-        <LoginPage />
-        <Toaster />
-      </>
-    )
-  }
-
   return (
-    <>
+    <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Navigate to="/lazy" replace />} />
-          <Route path="lazy" element={<LazyMode />} />
-          <Route path="projects" element={<ProjectsPage />} />
-          <Route path="projects/new" element={<NewProjectPage />} />
-          <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-          <Route path="llm-config" element={<LLMConfigPage />} />
+        {/* Public Routes */}
+        <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/ai-studio" />} />
+        <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/ai-studio" />} />
+
+        {/* Protected Routes with Layout */}
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          <Route path="/ai-studio" element={<AIStudio />} />
+          <Route path="/llm-config" element={<LLMConfigPage />} />
         </Route>
+
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />
-    </>
+    </BrowserRouter>
   )
 }
 

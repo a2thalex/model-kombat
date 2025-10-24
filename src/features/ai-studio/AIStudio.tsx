@@ -79,7 +79,7 @@ interface RefinementRound {
   duration?: number // Time taken in ms
 }
 
-interface LazyModeSettings {
+interface AIStudioSettings {
   autoRounds: number
   useOnlyFlagship: boolean
   randomizeOrder: boolean
@@ -88,7 +88,7 @@ interface LazyModeSettings {
   autoEnhancePrompt: boolean
 }
 
-export default function LazyModeV3() {
+export default function AIStudio() {
   const navigate = useNavigate()
   const { config, models, loadConfig } = useLLMConfigStore()
   const [question, setQuestion] = useState('')
@@ -104,7 +104,7 @@ export default function LazyModeV3() {
   const [showFullContent, setShowFullContent] = useState<Record<string, boolean>>({})
 
   // Settings state
-  const [settings, setSettings] = useState<LazyModeSettings>({
+  const [settings, setSettings] = useState<AIStudioSettings>({
     autoRounds: 3,
     useOnlyFlagship: true,
     randomizeOrder: false,
@@ -444,7 +444,7 @@ ENHANCED ANSWER:
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    Lazy Mode
+                    AI Studio
                   </h1>
                   <p className="text-muted-foreground mt-1">
                     Automatic iterative refinement powered by AI
@@ -1049,7 +1049,7 @@ ENHANCED ANSWER:
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5" />
-                  Lazy Mode Settings
+                  AI Studio Settings
                 </CardTitle>
                 <CardDescription>
                   Configure how refinement works
