@@ -10,17 +10,7 @@ import { useAuthStore } from './store/auth'
 import './styles/globals.css'
 
 // Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
-
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />
-  }
-
-  return <>{children}</>
-}
-
-function App() {
+function ProtectedRoute() {
   const { isAuthenticated, loading } = useAuthStore()
 
   if (loading) {
@@ -31,22 +21,39 @@ function App() {
     )
   }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />
+  }
+
+  return <MainLayout />
+}
+
+// Inner component that uses routing hooks
+function AppRoutes() {
+  const { isAuthenticated } = useAuthStore()
+
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/ai-studio" />} />
+      <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/ai-studio" />} />
+
+      {/* Protected Routes with Layout */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/ai-studio" element={<AIStudio />} />
+        <Route path="/llm-config" element={<LLMConfigPage />} />
+      </Route>
+
+      {/* Catch all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/ai-studio" />} />
-        <Route path="/auth" element={!isAuthenticated ? <AuthPage /> : <Navigate to="/ai-studio" />} />
-
-        {/* Protected Routes with Layout */}
-        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-          <Route path="/ai-studio" element={<AIStudio />} />
-          <Route path="/llm-config" element={<LLMConfigPage />} />
-        </Route>
-
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AppRoutes />
       <Toaster />
     </BrowserRouter>
   )
