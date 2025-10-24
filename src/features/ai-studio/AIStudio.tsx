@@ -17,16 +17,12 @@ import {
 } from '@/components/ui/tooltip'
 import {
   Sparkles,
-  Send,
-  RefreshCw,
   Copy,
   Check,
   Zap,
   Brain,
-  ChevronRight,
   Loader2,
   Settings,
-  Wand2,
   Rocket,
   Star,
   TrendingUp,
@@ -46,8 +42,6 @@ import {
   ArrowRight,
   Timer,
   Cpu,
-  BarChart3,
-  Plus,
   Eye,
   EyeOff,
   AlertCircle,
@@ -89,6 +83,8 @@ export default function AIStudio() {
   const [overallProgress, setOverallProgress] = useState(0)
   const [showFullContent, setShowFullContent] = useState<Record<string, boolean>>({})
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const [failedModels, setFailedModels] = useState<Set<string>>(new Set())
 
   // Settings state - simplified
   const [autoRounds, setAutoRounds] = useState(3)
@@ -173,6 +169,17 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
     }
   }
 
+  const cancelOperation = () => {
+    if (abortController) {
+      abortController.abort()
+      setAbortController(null)
+      toast({
+        title: 'Operation Cancelled',
+        description: 'The current operation has been stopped',
+      })
+    }
+  }
+
   const generateAndRefine = async () => {
     const promptToUse = promptEnhanced ? enhancedPrompt : question
 
@@ -203,13 +210,24 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
       return
     }
 
+    // Create new abort controller for this operation
+    const controller = new AbortController()
+    setAbortController(controller)
+
     setIsRunning(true)
     setRounds([])
     setOverallProgress(0)
+    setFailedModels(new Set())
 
     try {
-      // Get models for this run
-      let modelsToUse = [...availableModels]
+      // Get models for this run, excluding failed ones
+      let modelsToUse = availableModels.filter(m => !failedModels.has(m.id))
+
+      if (modelsToUse.length === 0) {
+        // Reset failed models if all have failed
+        setFailedModels(new Set())
+        modelsToUse = [...availableModels]
+      }
 
       // Generate initial answer with first model
       const firstModel = modelsToUse[0]
@@ -229,6 +247,11 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
 
       setRounds([initialRound])
 
+      // Check if cancelled
+      if (controller.signal.aborted) {
+        throw new Error('Operation cancelled')
+      }
+
       const response = await openRouterService.createChatCompletion({
         model: firstModel.id,
         messages: [{ role: 'user', content: promptToUse }],
@@ -247,17 +270,28 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
       setOverallProgress(Math.floor((1 / (autoRounds + 1)) * 100))
 
       // Start refinement rounds
-      await refineWithModels(initialAnswer, promptToUse, 1, modelsToUse)
+      await refineWithModels(initialAnswer, promptToUse, 1, modelsToUse, controller)
     } catch (error: any) {
       console.error('Generation failed:', error)
+
+      if (error.message === 'Operation cancelled') {
+        setIsRunning(false)
+        setAbortController(null)
+        return
+      }
+
+      const errorMessage = error.message || 'Failed to generate initial answer'
+      const modelName = rounds[rounds.length - 1]?.modelName || 'Unknown model'
+
       toast({
         title: 'Generation Failed',
-        description: error.message || 'Failed to generate initial answer',
+        description: `${modelName}: ${errorMessage}`,
         variant: 'destructive',
       })
     } finally {
       setIsRunning(false)
       setOverallProgress(100)
+      setAbortController(null)
     }
   }
 
@@ -265,13 +299,33 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
     previousAnswer: string,
     originalQuestion: string,
     roundNumber: number,
-    modelsToUse: typeof availableModels
+    modelsToUse: typeof availableModels,
+    controller: AbortController
   ) => {
     if (roundNumber > autoRounds) return
 
-    // Select next model
-    const modelIndex = roundNumber % modelsToUse.length
-    const model = modelsToUse[modelIndex]
+    // Check if cancelled
+    if (controller.signal.aborted) {
+      throw new Error('Operation cancelled')
+    }
+
+    // Select next model, skipping failed ones
+    let modelIndex = roundNumber % modelsToUse.length
+    let model = modelsToUse[modelIndex]
+
+    // Find next non-failed model
+    let attempts = 0
+    while (failedModels.has(model.id) && attempts < modelsToUse.length) {
+      modelIndex = (modelIndex + 1) % modelsToUse.length
+      model = modelsToUse[modelIndex]
+      attempts++
+    }
+
+    if (attempts >= modelsToUse.length) {
+      console.log('All models have failed, resetting failed models list')
+      setFailedModels(new Set())
+    }
+
     const roundId = Date.now().toString()
     const startTime = Date.now()
 
@@ -288,6 +342,11 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
       }
 
       setRounds(prev => [...prev, newRound])
+
+      // Check again before API call
+      if (controller.signal.aborted) {
+        throw new Error('Operation cancelled')
+      }
 
       const critiquePrompt = `You are an expert reviewer helping to iteratively improve an answer.
 
@@ -336,13 +395,40 @@ ENHANCED ANSWER:
       setOverallProgress(Math.floor(((roundNumber + 1) / (autoRounds + 1)) * 100))
 
       // Continue refinement
-      await refineWithModels(improvedAnswer, originalQuestion, roundNumber + 1, modelsToUse)
+      await refineWithModels(improvedAnswer, originalQuestion, roundNumber + 1, modelsToUse, controller)
     } catch (error: any) {
-      console.error('Refinement failed:', error)
-      toast({
-        title: 'Refinement Issue',
-        description: `Round ${roundNumber} failed, continuing...`,
-      })
+      console.error(`Refinement failed for ${model.name}:`, error)
+
+      // Mark this model as failed if it's a timeout
+      if (error.message?.includes('timeout') || error.code === 'ECONNABORTED') {
+        setFailedModels(prev => new Set([...prev, model.id]))
+
+        toast({
+          title: 'Model Timeout',
+          description: `${model.name} took too long to respond. Skipping to next model...`,
+          variant: 'destructive',
+        })
+
+        // Update the round to show it failed
+        setRounds(prev => prev.map(r =>
+          r.id === roundId
+            ? { ...r, content: 'Failed: Timeout', isRefining: false, quality: 0 }
+            : r
+        ))
+
+        // Try with next round/model if not at the end
+        if (roundNumber <= autoRounds) {
+          await refineWithModels(previousAnswer, originalQuestion, roundNumber + 1, modelsToUse, controller)
+        }
+      } else if (error.message === 'Operation cancelled') {
+        throw error // Re-throw cancellation
+      } else {
+        toast({
+          title: 'Refinement Issue',
+          description: `${model.name}: ${error.message || 'Unknown error'}`,
+          variant: 'destructive',
+        })
+      }
     }
   }
 
@@ -611,24 +697,37 @@ ENHANCED ANSWER:
                 )}
               </div>
 
-              <Button
-                size="lg"
-                onClick={generateAndRefine}
-                disabled={isRunning || (!question.trim() && !enhancedPrompt.trim()) || availableModels.length === 0}
-                className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg"
-              >
-                {isRunning ? (
-                  <>
+              {isRunning ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="lg"
+                    variant="destructive"
+                    onClick={cancelOperation}
+                    className="gap-2"
+                  >
+                    <X className="h-5 w-5" />
+                    Cancel
+                  </Button>
+                  <Button
+                    size="lg"
+                    disabled
+                    className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+                  >
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Refining... {Math.round(overallProgress)}%
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="h-5 w-5" />
-                    Generate & Refine
-                  </>
-                )}
-              </Button>
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="lg"
+                  onClick={generateAndRefine}
+                  disabled={(!question.trim() && !enhancedPrompt.trim()) || availableModels.length === 0}
+                  className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg"
+                >
+                  <PlayCircle className="h-5 w-5" />
+                  Generate & Refine
+                </Button>
+              )}
             </div>
 
             {isRunning && (
@@ -753,7 +852,8 @@ ENHANCED ANSWER:
                         className={cn(
                           "transition-all hover:shadow-lg",
                           round.isRefining && "opacity-60 animate-pulse",
-                          round.quality === getBestAnswer()?.quality && "ring-2 ring-purple-500"
+                          round.quality === getBestAnswer()?.quality && "ring-2 ring-purple-500",
+                          round.content === 'Failed: Timeout' && "border-red-500 bg-red-50 dark:bg-red-950/20"
                         )}
                       >
                         <CardHeader className="pb-3">
@@ -827,6 +927,13 @@ ENHANCED ANSWER:
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" />
                               <span className="text-sm">Refining answer...</span>
+                            </div>
+                          ) : round.content === 'Failed: Timeout' ? (
+                            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                              <AlertCircle className="h-4 w-4" />
+                              <span className="text-sm font-medium">
+                                Model timed out after 2 minutes. The model may be overloaded.
+                              </span>
                             </div>
                           ) : (
                             <p className={cn(
