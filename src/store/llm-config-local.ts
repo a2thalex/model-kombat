@@ -127,7 +127,11 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             openRouterService.initialize(apiKey)
           } else if (get().config?.openRouterApiKey) {
             const savedKey = deobfuscateKey(get().config!.openRouterApiKey)
-            openRouterService.initialize(savedKey)
+            if (savedKey) {
+              openRouterService.initialize(savedKey)
+            } else {
+              throw new Error('Failed to decode API key')
+            }
           } else {
             throw new Error('No API key configured')
           }

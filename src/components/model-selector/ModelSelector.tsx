@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { isFlagshipModel, groupModelsByProvider } from '@/utils/flagship-models'
 
 interface ModelSelectorProps {
-  models: Array<{ id: string; name: string }>
+  models: Array<{ id: string; name?: string }>
   selectedModelId?: string
   onSelectModel: (modelId: string) => void
   placeholder?: string
@@ -60,7 +60,7 @@ export default function ModelSelector({
   const groupedModels = useMemo(() => {
     const filtered = searchQuery
       ? models.filter(model =>
-          model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (model.name || model.id).toLowerCase().includes(searchQuery.toLowerCase()) ||
           model.id.toLowerCase().includes(searchQuery.toLowerCase())
         )
       : models
@@ -68,10 +68,11 @@ export default function ModelSelector({
     return groupModelsByProvider(filtered)
   }, [models, searchQuery])
 
-  const getModelDisplayName = (model: { id: string; name: string }) => {
+  const getModelDisplayName = (model: { id: string; name?: string }) => {
     // Remove provider prefix for cleaner display
-    const parts = model.name.split('/')
-    return parts.length > 1 ? parts.slice(1).join('/') : model.name
+    const modelName = model.name || model.id
+    const parts = modelName.split('/')
+    return parts.length > 1 ? parts.slice(1).join('/') : modelName
   }
 
   const handleSelect = (modelId: string) => {
@@ -99,7 +100,7 @@ export default function ModelSelector({
               {isFlagshipModel(selectedModel.id) && (
                 <Crown className="h-4 w-4 text-yellow-500 flex-shrink-0" />
               )}
-              <span className="truncate">{selectedModel.name}</span>
+              <span className="truncate">{selectedModel.name || selectedModel.id}</span>
             </div>
           ) : (
             <span>{placeholder}</span>
@@ -175,7 +176,7 @@ export default function ModelSelector({
                           const bIsFlagship = isFlagshipModel(b.id)
                           if (aIsFlagship && !bIsFlagship) return -1
                           if (!aIsFlagship && bIsFlagship) return 1
-                          return a.name.localeCompare(b.name)
+                          return (a.name || a.id).localeCompare(b.name || b.id)
                         })
                         .map((model) => {
                           const isSelected = model.id === selectedModelId
