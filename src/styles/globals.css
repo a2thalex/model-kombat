@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,8 +12,8 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 280 100% 60%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
@@ -22,8 +24,16 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --ring: 280 100% 60%;
+    --radius: 0.75rem;
+  }
+
+  html {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
   }
 
   .dark {
@@ -125,4 +135,58 @@
 
 .pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Youth aesthetic - Modern, bold, vibrant */
+@layer components {
+  /* Fix unreadable buttons */
+  button {
+    @apply font-medium transition-all duration-200;
+  }
+
+  /* Ensure button text is always readable */
+  button:hover {
+    @apply brightness-110;
+  }
+
+  /* Fix ghost buttons on dark backgrounds */
+  .dark button[data-variant="ghost"],
+  button.bg-transparent,
+  button.hover\:bg-white\/10 {
+    @apply hover:bg-white/20 hover:backdrop-blur-sm;
+  }
+
+  /* Youth aesthetic - Bold gradients */
+  .gradient-youth {
+    @apply bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400;
+  }
+
+  .gradient-youth-hover {
+    @apply hover:from-purple-600 hover:via-pink-600 hover:to-orange-500;
+  }
+
+  /* Modern card styles */
+  .card-youth {
+    @apply backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl;
+  }
+
+  /* Bold typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+
+  /* Modern input styles */
+  input, textarea {
+    @apply font-medium placeholder:font-normal;
+  }
+
+  /* Fix button contrast on landing page */
+  .landing-button {
+    @apply bg-white/10 hover:bg-white/25 backdrop-blur-md border border-white/30 text-white font-semibold;
+  }
+
+  /* Ensure links are visible */
+  a {
+    @apply hover:opacity-80 transition-opacity;
+  }
 }

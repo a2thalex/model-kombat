@@ -56,6 +56,22 @@ export default function LLMConfigPage() {
     loadConfig()
   }, [loadConfig])
 
+  // Populate API key field when config loads
+  useEffect(() => {
+    if (config?.openRouterApiKey && !apiKey) {
+      // Deobfuscate and set the saved API key
+      const savedKey = config.openRouterApiKey
+      // The key is obfuscated, we need to deobfuscate it for display
+      try {
+        const deobfuscated = atob(savedKey.split('').reverse().join(''))
+        setApiKey(deobfuscated)
+      } catch {
+        // If deobfuscation fails, leave field empty
+        console.log('Could not restore saved API key')
+      }
+    }
+  }, [config])
+
   const handleSaveApiKey = async () => {
     if (!apiKey.trim()) return
 
