@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -42,33 +41,32 @@ const mapFirebaseUser = (firebaseUser: FirebaseUser | null): User | null => {
   }
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      isAuthenticated: false,
-      loading: false,
+export const useAuthStore = create<AuthState>()((set) => ({
+  user: null,
+  isAuthenticated: false,
+  loading: false,
 
-      initAuth: () => {
-        set({ loading: true })
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-          if (firebaseUser) {
-            console.log('Auth state changed - Firebase user:', {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL
-            })
-          }
-          const user = mapFirebaseUser(firebaseUser)
-          set({
-            user,
-            isAuthenticated: !!user,
-            loading: false
-          })
+  initAuth: () => {
+    set({ loading: true })
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        console.log('Auth state changed - Firebase user:', {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL
         })
-        return unsubscribe
-      },
+      }
+      const user = mapFirebaseUser(firebaseUser)
+      console.log('Setting user in store:', user)
+      set({
+        user,
+        isAuthenticated: !!user,
+        loading: false
+      })
+    })
+    return unsubscribe
+  },
 
       signInWithEmail: async (email: string, password: string) => {
         set({ loading: true })
@@ -144,12 +142,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      setUser: (user) => {
-        set({ user, isAuthenticated: !!user })
-      }
-    }),
-    {
-      name: 'auth-storage'
-    }
-  )
-)
+  setUser: (user) => {
+    set({ user, isAuthenticated: !!user })
+  }
+}))
