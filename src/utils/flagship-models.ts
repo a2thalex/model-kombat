@@ -34,9 +34,6 @@ export const FLAGSHIP_MODEL_IDS = [
   'qwen/qwen-2.5-72b-instruct', // Qwen 2.5 72B
   'qwen/qwq-32b-preview',       // QwQ reasoning model
 
-  // DeepSeek
-  'deepseek/deepseek-chat',    // DeepSeek Chat
-
   // Cohere
   'cohere/command-r-plus',     // Command R+
 
