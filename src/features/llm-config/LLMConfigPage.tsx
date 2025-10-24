@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import {
   Key,
   RefreshCw,
@@ -14,12 +15,19 @@ import {
   DollarSign,
   Save,
   Eye,
-  EyeOff
+  EyeOff,
+  Cloud,
+  HardDrive,
+  Crown,
+  Star,
+  Sparkles
 } from 'lucide-react'
-import { useLLMConfigStore } from '@/store/llm-config'
+// Use local store when in development bypass mode to avoid Firebase auth issues
+import { useLLMConfigStore } from '@/store/llm-config-hybrid'
 import LoadingSpinner from '@/components/ui/loading-spinner'
 import { cn } from '@/utils/cn'
 import { OpenRouterModel } from '@/types'
+import { FLAGSHIP_MODEL_IDS } from '@/utils/flagship-models'
 
 export default function LLMConfigPage() {
   const {
@@ -28,6 +36,7 @@ export default function LLMConfigPage() {
     loading,
     isFetchingCatalog,
     isTestingConnection,
+    storageMode,
     loadConfig,
     saveApiKey,
     testConnection,
@@ -87,8 +96,22 @@ export default function LLMConfigPage() {
 
   // Get JSON-capable models for judge selection
   const jsonCapableModels = enabledModels.filter(model =>
-    model.capabilities?.supports_response_schema === true
+    // Check if model supports response_format or structured_outputs parameter
+    model.supported_parameters?.includes('response_format') ||
+    model.supported_parameters?.includes('structured_outputs') ||
+    model.capabilities?.supports_response_schema === true // Backward compatibility
   )
+
+  // Check if a model is a flagship model
+  const isFlagshipModel = (modelId: string): boolean => {
+    return FLAGSHIP_MODEL_IDS.some(flagshipId => {
+      const modelIdLower = modelId.toLowerCase()
+      const flagshipIdLower = flagshipId.toLowerCase()
+      return modelIdLower === flagshipIdLower ||
+             modelIdLower.includes(flagshipIdLower.split('/')[1] || flagshipIdLower) ||
+             flagshipIdLower.includes(modelIdLower.split('/')[1] || modelIdLower)
+    })
+  }
 
   const formatPrice = (price: number) => {
     return `$${(price / 1_000_000).toFixed(4)}`
@@ -112,10 +135,27 @@ export default function LLMConfigPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">LLM Configuration</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure your OpenRouter API access and model preferences
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">LLM Configuration</h1>
+            <p className="text-muted-foreground mt-1">
+              Configure your OpenRouter API access and model preferences
+            </p>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1 bg-muted rounded-md">
+            {storageMode === 'firestore' ? (
+              <>
+                <Cloud className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium">Cloud Storage</span>
+              </>
+            ) : (
+              <>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium">Local Storage</span>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-6">
@@ -205,7 +245,15 @@ export default function LLMConfigPage() {
         {/* Model Catalog */}
         <Card>
           <CardHeader>
-            <CardTitle>Model Catalog</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Model Catalog
+              {models.filter(m => isFlagshipModel(m.id)).length > 0 && (
+                <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 gap-1">
+                  <Crown className="h-3 w-3" />
+                  {models.filter(m => isFlagshipModel(m.id)).length} Flagship Models Auto-Enabled
+                </Badge>
+              )}
+            </CardTitle>
             <CardDescription>
               {models.length > 0
                 ? `${models.length} models available, ${enabledModels.length} enabled`
@@ -292,7 +340,14 @@ export default function LLMConfigPage() {
                           <tr key={model.id} className="border-t hover:bg-muted/50">
                             <td className="p-3">
                               <div>
-                                <div className="font-medium text-sm">{model.name}</div>
+                                <div className="font-medium text-sm flex items-center gap-2">
+                                  {model.name}
+                                  {isFlagshipModel(model.id) && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700" title="Flagship model - Auto-enabled">
+                                      <Crown className="h-3 w-3" />
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-xs text-muted-foreground">{model.id}</div>
                               </div>
                             </td>
@@ -301,17 +356,19 @@ export default function LLMConfigPage() {
                             </td>
                             <td className="text-center p-3">
                               <div className="flex justify-center gap-1">
-                                {model.capabilities?.supports_stream && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title="Supports streaming">
-                                    <Zap className="h-3 w-3" />
-                                  </span>
-                                )}
-                                {model.capabilities?.supports_response_schema && (
+                                {/* Most models support streaming by default on OpenRouter */}
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title="Supports streaming">
+                                  <Zap className="h-3 w-3" />
+                                </span>
+                                {/* Check for JSON support via supported_parameters */}
+                                {(model.supported_parameters?.includes('response_format') ||
+                                  model.supported_parameters?.includes('structured_outputs')) && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700" title="JSON output">
                                     <FileJson className="h-3 w-3" />
                                   </span>
                                 )}
-                                {model.capabilities?.supports_vision && (
+                                {/* Check for vision support via architecture.input_modalities */}
+                                {model.architecture?.input_modalities?.includes('image') && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700" title="Vision support">
                                     <Eye className="h-3 w-3" />
                                   </span>

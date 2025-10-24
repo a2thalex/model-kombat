@@ -1,82 +1,173 @@
-# Model Kombat
+# 🥊 Model Kombat
 
-A transparent, multi-phase AI model competition platform that helps users rigorously refine and compare AI-generated answers through adversarial refinement, competitive generation, and anonymous judging.
+An AI model competition platform that lets you pit different LLMs against each other in transparent, multi-phase competitions. Built with OpenRouter integration for seamless access to 200+ language models.
 
-## Overview
+![React](https://img.shields.io/badge/React-18.2-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)
+![OpenRouter](https://img.shields.io/badge/OpenRouter-API-green)
+![Vite](https://img.shields.io/badge/Vite-5.0-purple)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-Model Kombat enables users to:
-- **Refine**: Iteratively improve prompts and answers through adversarial critique
-- **Compete**: Generate multiple competing answers from different models
-- **Judge**: Score answers objectively against weighted criteria
+## ✨ Features
 
-All model interactions are powered by OpenRouter, providing access to a wide variety of state-of-the-art language models.
+### 🚀 Lazy Mode (NEW!)
+The crown jewel of Model Kombat - automate iterative refinement across multiple AI models:
+- **Auto-Refinement**: Automatically improves answers through multiple rounds
+- **Flagship Auto-Detection**: Instantly enables the best models from OpenAI, Anthropic, Google, Meta, and more
+- **Prompt Enhancement**: AI-powered prompt optimization for better results
+- **Quality Scoring**: Track improvement with real-time quality metrics
+- **Beautiful UI**: Modern interface with provider grouping and visual indicators
 
-## Features
+### 🎯 Three-Phase Competition System
 
-### Three-Phase Competition System
+#### Phase 1: Adversarial Refinement
+- Models alternate between solving problems and providing critiques
+- Each iteration improves upon the previous solution
+- Transparent critique history shows the evolution of ideas
 
-1. **Adversarial Refinement**: A single model iteratively critiques and improves its answer for N rounds
-2. **Competitive Generation**: Multiple models produce competing answers to the refined prompt
-3. **Anonymous Judging**: A judge model scores answers against weighted criteria and selects a winner
+#### Phase 2: Competitive Generation
+- All models tackle the same prompt simultaneously
+- Configurable parameters (temperature, max tokens, etc.)
+- Real-time streaming of responses
+- Side-by-side comparison view
 
-### Key Capabilities
+#### Phase 3: Anonymous Judging
+- Blind evaluation by selected judge models
+- JSON-structured scoring with detailed criteria
+- Automatic winner determination
+- Export results for analysis
 
-- 🔄 Iterative refinement with configurable rounds (1-10)
-- 🏆 Head-to-head model competitions (2-5 competitors)
-- 📊 Customizable grading criteria with weighted scoring
-- 🎭 Anonymous judging to prevent bias
-- 📈 Real-time streaming and progress tracking
-- 💾 Project persistence and resume capability
-- 📄 Export results as PDF or JSON
-- 🔒 Secure API key management
+### 🎨 Key Features
 
-## Tech Stack
+- **200+ Models**: Access to all OpenRouter models including GPT-4, Claude, Gemini, Llama, and more
+- **Flagship Model Badges**: Visual indicators (👑) for premium models
+- **Provider Organization**: Models grouped by company with custom colors
+- **Real-time Streaming**: Watch responses generate in real-time
+- **Hybrid Storage**: Firebase + localStorage fallback for reliability
+- **Export Options**: PDF and JSON export for competition results
+- **Dark Mode Support**: Full theme customization
+- **Rate Limiting**: Built-in protection with Bottleneck (10 req/s)
+
+## 🛠️ Technology Stack
 
 - **Frontend**: React 18 + TypeScript + Vite
-- **UI**: ShadCN UI + Tailwind CSS
-- **Backend**: Firebase (Auth + Firestore)
-- **AI Models**: OpenRouter API
 - **State Management**: Zustand
-- **Real-time**: Firestore listeners
-- **Icons**: Lucide React
+- **UI Components**: ShadCN UI + Radix UI + Tailwind CSS
+- **API Integration**: OpenRouter (200+ LLMs)
+- **Database**: Firebase Firestore (with localStorage fallback)
+- **Authentication**: Firebase Auth
+- **Styling**: Tailwind CSS + CSS-in-JS
 
-## Prerequisites
+## 📦 Installation
 
-- Node.js 18+ and npm
-- OpenRouter API key ([Get one here](https://openrouter.ai))
-- Firebase project (free tier is sufficient)
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/model-kombat.git
+   cd model-kombat
+   ```
 
-## Installation
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/model-kombat.git
-cd model-kombat
-```
+3. **Set up environment variables**
+   Create a `.env.local` file in the root directory:
+   ```env
+   # OpenRouter API (Required)
+   VITE_OPENROUTER_API_KEY=your_openrouter_api_key
 
-2. Install dependencies:
-```bash
-npm install
-```
+   # Firebase Config (Optional - will use localStorage if not provided)
+   VITE_FIREBASE_API_KEY=your_firebase_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   ```
 
-3. Set up environment variables:
-```bash
-cp .env.example .env
-```
+4. **Start the development server**
+   ```bash
+   npm run dev
+   ```
 
-Edit `.env` with your configuration:
-```
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-```
+5. **Open your browser**
+   Navigate to `http://localhost:5173`
 
-4. Start the development server:
-```bash
-npm run dev
+## 🚀 Quick Start Guide
+
+### Setting Up Your First Competition
+
+1. **Configure OpenRouter API**
+   - Go to Settings → LLM Config
+   - Enter your OpenRouter API key
+   - Click "Load Model Catalog" to fetch available models
+
+2. **Using Lazy Mode (Recommended for beginners)**
+   - Navigate to "Lazy Mode" from the sidebar
+   - Enter your question or prompt
+   - Optional: Click "Enhance Prompt" for AI-powered optimization
+   - Click "Generate & Refine" to start automatic refinement
+   - Watch as multiple AI models iteratively improve the answer
+
+3. **Creating a Full Competition**
+   - Go to "New Project"
+   - Configure competition parameters:
+     - Name and description
+     - Select participant models
+     - Choose judge models
+     - Set generation parameters
+   - Start Phase 1: Adversarial Refinement
+   - Progress through all three phases
+   - Export results as PDF or JSON
+
+## 🎯 Use Cases
+
+- **AI Research**: Compare model capabilities across different tasks
+- **Prompt Engineering**: Find the best model for specific use cases
+- **Educational**: Learn how different models approach problems
+- **Content Generation**: Get the best possible output through iterative refinement
+- **Model Evaluation**: Systematic comparison of model performance
+
+## 📊 Flagship Models
+
+Model Kombat automatically detects and enables flagship models from major providers:
+
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
+- **Anthropic**: Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku
+- **Google**: Gemini Pro 1.5, Gemini Flash
+- **Meta**: Llama 3.1 405B, Llama 3.1 70B
+- **Mistral**: Large, Medium, Mixtral
+- **xAI**: Grok Beta
+- **And many more...**
+
+## 🔧 Configuration
+
+### Model Selection
+- Flagship models are auto-enabled on catalog load
+- Manual selection available for specific use cases
+- Filter by capabilities (JSON, vision, function calling)
+- Group by provider for easy navigation
+
+### Competition Parameters
+- **Temperature**: Control creativity vs consistency (0.0 - 1.0)
+- **Max Tokens**: Set response length limits
+- **Top-P**: Nucleus sampling parameter
+- **System Prompts**: Custom instructions for each phase
+- **Judge Criteria**: Define scoring rubrics
+
+## 📝 API Usage
+
+The app uses OpenRouter's unified API to access multiple model providers:
+
+```javascript
+// Example API call structure
+const response = await openRouterService.createChatCompletion({
+  model: 'openai/gpt-4-turbo-preview',
+  messages: [{ role: 'user', content: 'Your prompt here' }],
+  temperature: 0.7,
+  stream: true
+});
 ```
 
 ## Project Structure
@@ -84,96 +175,63 @@ npm run dev
 ```
 src/
 ├── components/        # Reusable UI components
-├── features/          # Feature modules
-│   ├── auth/         # Authentication
-│   ├── projects/     # Project management
-│   ├── llm-config/   # LLM configuration
-│   └── execution/    # Competition execution
-├── services/         # API and Firebase services
-├── hooks/           # Custom React hooks
-├── store/           # State management
-├── types/           # TypeScript interfaces
-├── utils/           # Helper functions
-└── styles/          # Global styles
+│   ├── layout/       # Layout components
+│   ├── model-selector/ # Model selection dropdown
+│   └── ui/           # ShadCN UI components
+├── features/         # Feature modules
+│   ├── auth/        # Authentication
+│   ├── projects/    # Project management
+│   ├── phases/      # Competition phases
+│   ├── llm-config/  # LLM configuration
+│   └── lazy-mode/   # Lazy Mode feature
+├── services/        # API and Firebase services
+├── hooks/          # Custom React hooks
+├── store/          # Zustand state management
+├── types/          # TypeScript interfaces
+├── utils/          # Helper functions
+└── styles/         # Global styles
 ```
 
-## Usage
+## 🤝 Contributing
 
-### Setting Up OpenRouter
-
-1. Navigate to the LLM Configuration tab
-2. Enter your OpenRouter API key
-3. Test the connection to fetch available models
-4. Enable models you want to use in competitions
-
-### Creating a Project
-
-1. Click "New Project" from the Projects tab
-2. Enter your question or prompt
-3. Configure the three phases:
-   - **Refiner**: Select model and number of rounds
-   - **Competitors**: Choose 2-5 models
-   - **Judge**: Pick a JSON-capable model and set criteria
-4. Start the project and watch the competition unfold
-
-### Understanding Results
-
-- Each phase displays real-time progress
-- Final scorecard shows weighted scores per criterion
-- Click "Reveal Source Models" to see which model produced each answer
-- Export results as PDF or JSON for further analysis
-
-## Development
-
-### Available Scripts
-
-```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run lint         # Run ESLint
-npm run type-check   # Run TypeScript compiler
-npm test            # Run tests
-```
-
-### Code Style
-
-- TypeScript for type safety
-- ESLint + Prettier for code formatting
-- Conventional Commits for version control
-
-## Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## Security
+## 📄 License
 
-- OpenRouter API keys are stored encrypted server-side
-- User data is isolated via Firestore security rules
-- All model interactions transit through OpenRouter's secure API
-- Content safety measures in place for input/output
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## License
+## 🙏 Acknowledgments
 
-MIT License - see [LICENSE](LICENSE) file for details
+- [OpenRouter](https://openrouter.ai) for unified LLM API access
+- [ShadCN UI](https://ui.shadcn.com) for beautiful React components
+- [Radix UI](https://www.radix-ui.com) for accessible component primitives
+- All the amazing open-source contributors
 
-## Acknowledgments
+## 🔗 Links
 
-- Built with OpenRouter for model access
-- UI components from ShadCN
-- Icons from Lucide
-- Powered by Firebase
+- [OpenRouter API Documentation](https://openrouter.ai/docs)
+- [Get OpenRouter API Key](https://openrouter.ai/keys)
+- [Firebase Console](https://console.firebase.google.com)
+- [Report Issues](https://github.com/yourusername/model-kombat/issues)
 
-## Support
+## 🚦 Status
 
-- Report issues: [GitHub Issues](https://github.com/yourusername/model-kombat/issues)
-- Documentation: [Wiki](https://github.com/yourusername/model-kombat/wiki)
-- Contact: your.email@example.com
+- ✅ Core competition system
+- ✅ Lazy Mode with auto-refinement
+- ✅ Flagship model auto-detection
+- ✅ OpenRouter integration
+- ✅ Firebase + localStorage hybrid storage
+- ✅ Export functionality
+- 🚧 Team competitions (coming soon)
+- 🚧 Competition history analytics (planned)
+- 🚧 Custom evaluation metrics (planned)
 
 ---
 
-**Model Kombat** - Where AI models compete for the best answer 🏆
+Built with ❤️ for the AI community. Let the best model win! 🏆

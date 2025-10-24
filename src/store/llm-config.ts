@@ -40,6 +40,13 @@ function deobfuscateKey(obfuscated: string): string {
   }
 }
 
+// Helper function to get user ID (handles dev bypass mode)
+function getUserId(): string | null {
+  const user = auth.currentUser
+  // In development bypass mode, use a test user ID
+  return user?.uid || (import.meta.env.DEV ? 'dev-test-user' : null)
+}
+
 export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
   // Initial state
   config: null,
@@ -51,13 +58,13 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
   // Load user's LLM configuration from Firestore
   loadConfig: async () => {
-    const user = auth.currentUser
-    if (!user) return
+    const userId = getUserId()
+    if (!userId) return
 
     set({ loading: true, lastError: null })
 
     try {
-      const docRef = doc(db, 'llm-configs', user.uid)
+      const docRef = doc(db, 'llm-configs', userId)
       const docSnap = await getDoc(docRef)
 
       if (docSnap.exists()) {
@@ -80,7 +87,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
       } else {
         // Create default config
         const defaultConfig: LLMConfig = {
-          userId: user.uid,
+          userId: userId,
           enabledModelIds: [],
           defaultRefinementRounds: 3,
         }
@@ -97,8 +104,8 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
   // Save API key and test connection
   saveApiKey: async (apiKey: string) => {
-    const user = auth.currentUser
-    if (!user) throw new Error('User not authenticated')
+    const userId = getUserId()
+    if (!userId) throw new Error('User not authenticated')
 
     set({ loading: true, lastError: null })
 
@@ -114,7 +121,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
       // Obfuscate and save
       const obfuscatedKey = obfuscateKey(apiKey)
-      const docRef = doc(db, 'llm-configs', user.uid)
+      const docRef = doc(db, 'llm-configs', userId)
 
       await setDoc(docRef, {
         ...get().config,
@@ -198,9 +205,9 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
       set({ models })
 
       // Update last sync time
-      const user = auth.currentUser
-      if (user) {
-        const docRef = doc(db, 'llm-configs', user.uid)
+      const userId = getUserId()
+      if (userId) {
+        const docRef = doc(db, 'llm-configs', userId)
         await setDoc(docRef, {
           lastCatalogSync: new Date(),
         }, { merge: true })
@@ -225,8 +232,8 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
   // Toggle model enabled/disabled
   toggleModel: async (modelId: string, enabled: boolean) => {
-    const user = auth.currentUser
-    if (!user) return
+    const userId = getUserId()
+    if (!userId) return
 
     try {
       const currentConfig = get().config
@@ -240,7 +247,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         enabledModelIds = enabledModelIds.filter(id => id !== modelId)
       }
 
-      const docRef = doc(db, 'llm-configs', user.uid)
+      const docRef = doc(db, 'llm-configs', userId)
       await setDoc(docRef, { enabledModelIds }, { merge: true })
 
       set(state => ({
@@ -261,11 +268,11 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
   // Set default refiner model
   setDefaultRefiner: async (modelId: string) => {
-    const user = auth.currentUser
-    if (!user) return
+    const userId = getUserId()
+    if (!userId) return
 
     try {
-      const docRef = doc(db, 'llm-configs', user.uid)
+      const docRef = doc(db, 'llm-configs', userId)
       await setDoc(docRef, { defaultRefinerId: modelId }, { merge: true })
 
       set(state => ({
@@ -286,11 +293,11 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
   // Set default judge model
   setDefaultJudge: async (modelId: string) => {
-    const user = auth.currentUser
-    if (!user) return
+    const userId = getUserId()
+    if (!userId) return
 
     try {
-      const docRef = doc(db, 'llm-configs', user.uid)
+      const docRef = doc(db, 'llm-configs', userId)
       await setDoc(docRef, { defaultJudgeId: modelId }, { merge: true })
 
       set(state => ({
@@ -311,8 +318,8 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
   // Set default refinement rounds
   setDefaultRounds: async (rounds: number) => {
-    const user = auth.currentUser
-    if (!user) return
+    const userId = getUserId()
+    if (!userId) return
 
     if (rounds < 1 || rounds > 10) {
       toast({
@@ -324,7 +331,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
     }
 
     try {
-      const docRef = doc(db, 'llm-configs', user.uid)
+      const docRef = doc(db, 'llm-configs', userId)
       await setDoc(docRef, { defaultRefinementRounds: rounds }, { merge: true })
 
       set(state => ({

@@ -1,3 +1,4 @@
+// Development version with optional auth bypass
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthState } from 'react-firebase-hooks/auth'
 import { auth } from './services/firebase'
@@ -8,27 +9,24 @@ import ProjectsPage from './features/projects/ProjectsPage'
 import ProjectDetailPage from './features/projects/ProjectDetailPage'
 import NewProjectPage from './features/projects/NewProjectPage'
 import LLMConfigPage from './features/llm-config/LLMConfigPage'
-import LazyMode from './features/lazy-mode/LazyModeV3'
 import LoadingSpinner from './components/ui/loading-spinner'
 
-// TEMPORARY: Bypass auth for testing OpenRouter integration
-// Set to false once Firebase Auth is configured
-const BYPASS_AUTH = false
+// DEV MODE: Set to true to bypass authentication
+const BYPASS_AUTH = true
 
 function App() {
   const [user, loading] = useAuthState(auth)
 
-  // Development bypass for testing
+  // Development bypass
   if (BYPASS_AUTH && import.meta.env.DEV) {
     return (
       <>
-        <div className="bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium">
-          ⚠️ Development Mode: Authentication Bypassed - Firebase Auth setup pending
+        <div className="bg-yellow-100 text-yellow-800 text-center py-2 text-sm">
+          ⚠️ Development Mode: Authentication Bypassed
         </div>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/lazy" replace />} />
-            <Route path="lazy" element={<LazyMode />} />
+            <Route index element={<Navigate to="/projects" replace />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/new" element={<NewProjectPage />} />
             <Route path="projects/:projectId" element={<ProjectDetailPage />} />
@@ -61,8 +59,7 @@ function App() {
     <>
       <Routes>
         <Route path="/" element={<MainLayout />}>
-          <Route index element={<Navigate to="/lazy" replace />} />
-          <Route path="lazy" element={<LazyMode />} />
+          <Route index element={<Navigate to="/projects" replace />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/new" element={<NewProjectPage />} />
           <Route path="projects/:projectId" element={<ProjectDetailPage />} />

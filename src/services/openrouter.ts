@@ -144,7 +144,11 @@ class OpenRouterService {
    */
   getJsonCapableModels(): OpenRouterModel[] {
     return Array.from(this.modelCache.values()).filter(
-      model => model.capabilities?.supports_response_schema === true
+      model =>
+        // Check if model supports response_format or structured_outputs parameter
+        model.supported_parameters?.includes('response_format') ||
+        model.supported_parameters?.includes('structured_outputs') ||
+        model.capabilities?.supports_response_schema === true // Backward compatibility
     )
   }
 
@@ -152,9 +156,9 @@ class OpenRouterService {
    * Get models that support streaming
    */
   getStreamCapableModels(): OpenRouterModel[] {
-    return Array.from(this.modelCache.values()).filter(
-      model => model.capabilities?.supports_stream === true
-    )
+    // Most models on OpenRouter support streaming by default
+    // Stream is not explicitly listed in supported_parameters
+    return Array.from(this.modelCache.values())
   }
 
   /**
@@ -287,7 +291,28 @@ export const openRouterService = new OpenRouterService()
 // Helper function to check if a model supports a specific capability
 export function modelSupportsCapability(
   model: OpenRouterModel,
-  capability: keyof NonNullable<OpenRouterModel['capabilities']>
+  capability: string
 ): boolean {
-  return model.capabilities?.[capability] === true
+  // Map old capability names to new checks
+  switch (capability) {
+    case 'supports_response_schema':
+    case 'json_mode':
+      return model.supported_parameters?.includes('response_format') ||
+             model.supported_parameters?.includes('structured_outputs') ||
+             false
+    case 'supports_vision':
+    case 'vision':
+      return model.architecture?.input_modalities?.includes('image') || false
+    case 'supports_stream':
+      // Most models support streaming on OpenRouter
+      return true
+    case 'supports_functions':
+    case 'function_calling':
+      return model.supported_parameters?.includes('tools') ||
+             model.supported_parameters?.includes('tool_choice') ||
+             false
+    default:
+      // Check if it's directly in supported_parameters
+      return model.supported_parameters?.includes(capability) || false
+  }
 }

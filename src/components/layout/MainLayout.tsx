@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthState } from 'react-firebase-hooks/auth'
 import { auth, signOut } from '@/services/firebase'
 import { Button } from '@/components/ui/button'
-import { Trophy, Settings, LogOut, Menu, X } from 'lucide-react'
+import { Trophy, Settings, LogOut, Menu, X, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/utils/cn'
 import { useToast } from '@/hooks/use-toast'
@@ -33,6 +33,7 @@ export default function MainLayout() {
   }
 
   const navigation = [
+    { name: 'Lazy Mode', href: '/lazy', icon: Zap },
     { name: 'Projects', href: '/projects', icon: Trophy },
     { name: 'LLM Configuration', href: '/llm-config', icon: Settings },
   ]
