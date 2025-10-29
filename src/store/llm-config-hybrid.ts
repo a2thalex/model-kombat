@@ -5,6 +5,7 @@ import { db, auth } from '@/services/firebase'
 import { openRouterService } from '@/services/openrouter'
 import { LLMConfig, OpenRouterModel } from '@/types'
 import { toast } from '@/hooks/use-toast'
+import { logger } from '@/utils/logger'
 
 interface LLMConfigState {
   // State
@@ -67,7 +68,7 @@ async function isFirestoreAvailable(): Promise<boolean> {
     } catch (error: any) {
       // Check if it's a 400 error (Firestore not initialized)
       if (error?.code === 'failed-precondition' || error?.message?.includes('400')) {
-        console.log('Firestore not available, using localStorage')
+        logger.info('Firestore not available, using localStorage')
         return false
       }
       // For other errors, still try Firestore
@@ -110,7 +111,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           set({ loading: false, config: existingState.config })
 
           // Debug: Log that we found and loaded the API key
-          console.log('Loaded saved API key from localStorage:', {
+          logger.debug('Loaded saved API key from localStorage', {
             hasKey: !!existingState.config?.openRouterApiKey,
             keyLength: existingState.config?.openRouterApiKey?.length || 0
           })
@@ -120,7 +121,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
           if (!lastFetched || lastFetched < oneHourAgo) {
             // Don't await - let it run in background
-            get().fetchModelCatalog().catch(console.error)
+            get().fetchModelCatalog().catch((error) => logger.error('Background catalog fetch failed', error))
           }
         } else {
           // Only show loading if we don't have local config
@@ -172,7 +173,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
               set({ config: defaultConfig, storageMode: 'firestore' })
             }
           } catch (error) {
-            console.error('Firestore sync failed:', error)
+            logger.error('Firestore sync failed', error)
             set({ storageMode: 'local' })
           }
         }).finally(() => {
@@ -206,7 +207,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
               const docRef = doc(db, 'llm-configs', userId)
               await setDoc(docRef, updatedConfig)
             } catch (error) {
-              console.error('Failed to save to Firestore:', error)
+              logger.error('Failed to save to Firestore', error)
               // Don't fail, localStorage will handle it
             }
           }
@@ -218,7 +219,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           set({ config: updatedConfig })
 
           // Debug: Check if it's actually saved
-          console.log('API Key saved:', {
+          logger.debug('API Key saved', {
             storageMode: get().storageMode,
             configSaved: !!updatedConfig.openRouterApiKey,
             keyLength: obfuscatedKey.length
@@ -229,7 +230,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             description: `Configuration saved to ${get().storageMode === 'firestore' ? 'cloud' : 'local'} storage`,
           })
         } catch (error) {
-          console.error('Failed to save API key:', error)
+          logger.error('Failed to save API key', error)
           set({ lastError: 'Failed to save API key' })
           toast({
             title: 'Error',
@@ -271,7 +272,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             throw new Error('No models returned')
           }
         } catch (error: any) {
-          console.error('Connection test failed:', error)
+          logger.error('Connection test failed', error)
           const errorMessage = error?.message || 'Connection failed'
           set({ lastError: errorMessage })
 
@@ -290,7 +291,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
       fetchModelCatalog: async (forceRefresh = false) => {
         // Skip if already fetching
         if (get().isFetchingCatalog) {
-          console.log('Already fetching catalog, skipping...')
+          logger.debug('Already fetching catalog, skipping')
           return
         }
 
@@ -300,7 +301,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           if (lastFetched) {
             const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
             if (lastFetched > fiveMinutesAgo && get().models.length > 0) {
-              console.log('Models are fresh, skipping fetch')
+              logger.debug('Models are fresh, skipping fetch')
               return
             }
           }
@@ -345,7 +346,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             })
           }
         } catch (error: any) {
-          console.error('Failed to fetch model catalog:', error)
+          logger.error('Failed to fetch model catalog', error)
           const errorMessage = error?.message || 'Failed to fetch models'
           set({ lastError: errorMessage })
 

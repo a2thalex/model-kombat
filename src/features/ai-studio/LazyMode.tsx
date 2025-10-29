@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Sparkles,
   Send,
@@ -15,16 +14,19 @@ import {
   Brain,
   ChevronRight,
   Loader2,
-  Settings,
-  Wand2,
-  Crown
+  Settings
 } from 'lucide-react'
 import { useLLMConfigStore } from '@/store/llm-config-hybrid'
-import { openRouterService } from '@/services/openrouter'
+import { openRouterService, createMessageWithFiles } from '@/services/openrouter'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/utils/cn'
 import { useNavigate } from 'react-router-dom'
-import { FLAGSHIP_MODEL_IDS, getFlagshipModels, getModelForRound } from '@/utils/flagship-models'
+import { getFlagshipModels } from '@/utils/flagship-models'
+import { FileUpload } from '@/components/FileUpload'
+import { uploadFiles, type UploadedFile, deleteFile } from '@/services/file-upload'
+import { useAuthStore } from '@/store/auth'
+import { ResponseRating } from '@/components/ResponseRating'
+import { recordBatchJudgments } from '@/services/preference-tracking'
 
 interface RefinementRound {
   id: string
@@ -34,21 +36,23 @@ interface RefinementRound {
   critique?: string
   timestamp: Date
   isRefining: boolean
+  userRating?: number
+  isWinner?: boolean
 }
 
 export default function LazyMode() {
   const navigate = useNavigate()
   const { config, models, loadConfig } = useLLMConfigStore()
+  const { user } = useAuthStore()
   const [question, setQuestion] = useState('')
-  const [enhancedPrompt, setEnhancedPrompt] = useState('')
-  const [isEnhancing, setIsEnhancing] = useState(false)
-  const [promptEnhanced, setPromptEnhanced] = useState(false)
   const [rounds, setRounds] = useState<RefinementRound[]>([])
   const [isRunning, setIsRunning] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>('auto-flagship')
   const [autoRounds, setAutoRounds] = useState(3)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [useFlagshipModels, setUseFlagshipModels] = useState(true)
+  const [useFlagshipModels] = useState(true)
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
 
   useEffect(() => {
     loadConfig()
@@ -77,6 +81,130 @@ export default function LazyMode() {
     } catch {
       toast({
         title: 'Failed to copy',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleFilesSelected = async (files: File[]) => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in to upload files',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsUploadingFiles(true)
+    try {
+      const uploaded = await uploadFiles(files, {
+        userId: user.id,
+        convertToBase64: true,
+      })
+
+      setUploadedFiles(prev => [...prev, ...uploaded])
+
+      toast({
+        title: 'Files Uploaded',
+        description: `${uploaded.length} file(s) uploaded successfully`,
+      })
+    } catch (error) {
+      console.error('File upload failed:', error)
+      toast({
+        title: 'Upload Failed',
+        description: error instanceof Error ? error.message : 'Failed to upload files',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsUploadingFiles(false)
+    }
+  }
+
+  const handleRemoveFile = async (fileId: string) => {
+    const file = uploadedFiles.find(f => f.id === fileId)
+    if (!file) return
+
+    try {
+      await deleteFile(file.storageRef)
+      setUploadedFiles(prev => prev.filter(f => f.id !== fileId))
+
+      toast({
+        title: 'File Removed',
+        description: 'File has been deleted',
+      })
+    } catch (error) {
+      console.error('File deletion failed:', error)
+      toast({
+        title: 'Deletion Failed',
+        description: 'Failed to delete file',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleRateResponse = async (roundId: string, rating: number) => {
+    if (!user) return
+
+    setRounds(prev =>
+      prev.map(r => (r.id === roundId ? { ...r, userRating: rating } : r))
+    )
+
+    const round = rounds.find(r => r.id === roundId)
+    if (round) {
+      try {
+        await recordBatchJudgments(user.id, question, [
+          {
+            modelId: round.modelId,
+            modelName: round.modelName,
+            rating,
+            isWinner: round.isWinner || false,
+          },
+        ])
+
+        toast({
+          title: 'Rating Saved',
+          description: `Rated ${round.modelName} ${rating} stars`,
+        })
+      } catch (error) {
+        console.error('Failed to save rating:', error)
+        toast({
+          title: 'Failed to save rating',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
+
+  const handleSelectWinner = async (roundId: string) => {
+    if (!user) return
+
+    setRounds(prev =>
+      prev.map(r => ({
+        ...r,
+        isWinner: r.id === roundId,
+      }))
+    )
+
+    try {
+      const judgments = rounds.map(r => ({
+        modelId: r.modelId,
+        modelName: r.modelName,
+        rating: r.userRating || 3,
+        isWinner: r.id === roundId,
+      }))
+
+      await recordBatchJudgments(user.id, question, judgments)
+
+      const winner = rounds.find(r => r.id === roundId)
+      toast({
+        title: 'Winner Selected',
+        description: `${winner?.modelName} marked as best response`,
+      })
+    } catch (error) {
+      console.error('Failed to save winner:', error)
+      toast({
+        title: 'Failed to save selection',
         variant: 'destructive',
       })
     }
@@ -119,25 +247,36 @@ export default function LazyMode() {
 
       setRounds([initialRound])
 
+      // Create message content with uploaded files
+      const messageContent = createMessageWithFiles(question, uploadedFiles)
+
       // Generate initial answer
       const response = await openRouterService.createChatCompletion({
         model: selectedModel,
         messages: [
-          { role: 'user', content: question }
+          { role: 'user', content: messageContent }
         ],
         temperature: 0.7,
       })
 
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
+        const errorInfo = (response as any).error?.message || (response as any).error || 'Missing choices or content'
+        throw new Error(`Invalid API response: ${errorInfo}`)
+      }
+
+      const initialContent = response.choices[0].message.content
+
       // Update with answer
       setRounds(prev => prev.map(r =>
         r.id === roundId
-          ? { ...r, content: response.choices[0].message.content, isRefining: false }
+          ? { ...r, content: initialContent, isRefining: false }
           : r
       ))
 
       // Start auto-refinement if enabled
       if (autoRounds > 0) {
-        await startAutoRefinement(response.choices[0].message.content, 1)
+        await startAutoRefinement(initialContent, 1)
       }
     } catch (error: any) {
       console.error('Failed to generate answer:', error)
@@ -161,7 +300,7 @@ export default function LazyMode() {
     const roundId = Date.now().toString()
 
     // Select a different model or use the same one
-    const modelsToUse = enabledModels.length > 0 ? enabledModels : [{ id: 'openrouter/auto', name: 'Auto' }]
+    const modelsToUse = availableModels.length > 0 ? availableModels : [{ id: 'openrouter/auto', name: 'Auto' }]
     const modelIndex = roundNumber % modelsToUse.length
     const model = modelsToUse[modelIndex]
 
@@ -202,6 +341,12 @@ IMPROVED ANSWER: [Your improved answer here]`
         ],
         temperature: 0.7,
       })
+
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
+        const errorInfo = (response as any).error?.message || (response as any).error || 'Missing choices or content'
+        throw new Error(`Invalid API response: ${errorInfo}`)
+      }
 
       const responseText = response.choices[0].message.content
 
@@ -283,6 +428,14 @@ IMPROVED ANSWER: [Your improved answer here]`
                 disabled={isRunning}
               />
 
+              {/* File Upload for Vision/Audio Models */}
+              <FileUpload
+                onFilesSelected={handleFilesSelected}
+                uploadedFiles={uploadedFiles}
+                onRemoveFile={handleRemoveFile}
+                disabled={isRunning || isUploadingFiles}
+              />
+
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium">Model:</label>
@@ -293,7 +446,7 @@ IMPROVED ANSWER: [Your improved answer here]`
                     disabled={isRunning}
                   >
                     <option value="openrouter/auto">Auto (Let OpenRouter choose)</option>
-                    {enabledModels.map(model => (
+                    {availableModels.map(model => (
                       <option key={model.id} value={model.id}>
                         {model.name}
                       </option>
@@ -455,6 +608,21 @@ IMPROVED ANSWER: [Your improved answer here]`
                             </div>
                           )}
                         </div>
+
+                        {/* Rating Component */}
+                        {user && !round.isRefining && (
+                          <div className="pt-3 border-t">
+                            <ResponseRating
+                              modelId={round.modelId}
+                              modelName={round.modelName}
+                              currentRating={round.userRating}
+                              isWinner={round.isWinner}
+                              onRate={(rating) => handleRateResponse(round.id, rating)}
+                              onSelectWinner={() => handleSelectWinner(round.id)}
+                              disabled={isRunning}
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

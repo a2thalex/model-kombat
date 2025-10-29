@@ -10,6 +10,7 @@ import {
   User as FirebaseUser
 } from 'firebase/auth'
 import { auth, googleProvider, githubProvider } from '@/services/firebase'
+import { logger } from '@/utils/logger'
 
 interface User {
   id: string
@@ -55,18 +56,18 @@ export const useAuthStore = create<AuthState>()((set) => ({
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          console.log('Redirect sign-in successful:', result.user.email)
+          logger.auth('Redirect sign-in successful', { email: result.user.email })
           const user = mapFirebaseUser(result.user)
           set({ user, isAuthenticated: true })
         }
       })
       .catch((error) => {
-        console.error('Redirect sign-in error:', error)
+        logger.error('Redirect sign-in error', error)
       })
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        console.log('Auth state changed - Firebase user:', {
+        logger.auth('Auth state changed', {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
@@ -74,7 +75,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         })
       }
       const user = mapFirebaseUser(firebaseUser)
-      console.log('Setting user in store:', user)
+      logger.debug('Setting user in store', { user })
       set({
         user,
         isAuthenticated: !!user,
@@ -90,8 +91,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
           const userCredential = await signInWithEmailAndPassword(auth, email, password)
           const user = mapFirebaseUser(userCredential.user)
           set({ user, isAuthenticated: true })
+          logger.auth('Sign in with email successful', { email })
         } catch (error) {
-          console.error('Sign in error:', error)
+          logger.error('Sign in error', error, { email })
           throw error
         } finally {
           set({ loading: false })
@@ -104,8 +106,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
           const userCredential = await createUserWithEmailAndPassword(auth, email, password)
           const user = mapFirebaseUser(userCredential.user)
           set({ user, isAuthenticated: true })
+          logger.auth('Sign up with email successful', { email })
         } catch (error) {
-          console.error('Sign up error:', error)
+          logger.error('Sign up error', error, { email })
           throw error
         } finally {
           set({ loading: false })
@@ -115,29 +118,33 @@ export const useAuthStore = create<AuthState>()((set) => ({
       signInWithGoogle: async () => {
         set({ loading: true })
         try {
-          // Try popup first
+          // Use redirect in production for better COOP compatibility
+          if (import.meta.env.PROD) {
+            logger.info('Using redirect for Google sign-in (production)')
+            await signInWithRedirect(auth, googleProvider)
+            // The page will redirect, so loading state will be reset on return
+            return
+          }
+
+          // Use popup in development
           const userCredential = await signInWithPopup(auth, googleProvider)
-          console.log('Firebase user data:', {
+          logger.auth('Google sign-in successful', {
             uid: userCredential.user.uid,
             email: userCredential.user.email,
             displayName: userCredential.user.displayName,
-            photoURL: userCredential.user.photoURL,
             emailVerified: userCredential.user.emailVerified
           })
           const user = mapFirebaseUser(userCredential.user)
-          console.log('Mapped user data:', user)
           set({ user, isAuthenticated: true })
         } catch (error: any) {
-          console.error('Google sign in error:', error)
+          logger.error('Google sign in error', error)
 
-          // If popup fails due to COOP or popup blocked, fallback to redirect
+          // If popup fails, fallback to redirect
           if (error.code === 'auth/popup-closed-by-user' ||
               error.code === 'auth/popup-blocked' ||
               error.message?.includes('Cross-Origin-Opener-Policy')) {
-            console.log('Popup failed, using redirect method...')
-            // Use redirect as fallback
+            logger.info('Popup failed, using redirect method')
             await signInWithRedirect(auth, googleProvider)
-            // The page will redirect, so loading state will be reset on return
             return
           } else if (error.code === 'auth/cancelled-popup-request') {
             throw new Error('Another sign-in popup is already open.')
@@ -157,8 +164,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
           const userCredential = await signInWithPopup(auth, githubProvider)
           const user = mapFirebaseUser(userCredential.user)
           set({ user, isAuthenticated: true })
+          logger.auth('GitHub sign-in successful', { email: userCredential.user.email })
         } catch (error) {
-          console.error('GitHub sign in error:', error)
+          logger.error('GitHub sign in error', error)
           throw error
         } finally {
           set({ loading: false })
@@ -169,8 +177,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
         try {
           await firebaseSignOut(auth)
           set({ user: null, isAuthenticated: false })
+          logger.auth('Sign out successful')
         } catch (error) {
-          console.error('Sign out error:', error)
+          logger.error('Sign out error', error)
           throw error
         }
       },

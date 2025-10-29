@@ -34,7 +34,6 @@ import {
   Flame,
   Shield,
   Target,
-  Trophy,
   Gauge,
   BookOpen,
   ChevronDown,
@@ -52,10 +51,15 @@ import {
   Sliders
 } from 'lucide-react'
 import { useLLMConfigStore } from '@/store/llm-config-hybrid'
-import { openRouterService } from '@/services/openrouter'
+import { openRouterService, createMessageWithFiles } from '@/services/openrouter'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/utils/cn'
 import { useNavigate, Link } from 'react-router-dom'
+import { FileUpload } from '@/components/FileUpload'
+import { uploadFiles, type UploadedFile, deleteFile } from '@/services/file-upload'
+import { useAuthStore } from '@/store/auth'
+import { ResponseRating } from '@/components/ResponseRating'
+import { recordBatchJudgments } from '@/services/preference-tracking'
 
 interface RefinementRound {
   id: string
@@ -68,11 +72,14 @@ interface RefinementRound {
   quality?: number // Quality score 0-100
   provider?: string
   duration?: number // Time taken in ms
+  userRating?: number // User's 1-5 star rating
+  isWinner?: boolean // Marked as best response
 }
 
 export default function AIStudio() {
   const navigate = useNavigate()
   const { config, models, loadConfig } = useLLMConfigStore()
+  const { user } = useAuthStore()
   const [question, setQuestion] = useState('')
   const [enhancedPrompt, setEnhancedPrompt] = useState('')
   const [isEnhancing, setIsEnhancing] = useState(false)
@@ -85,6 +92,8 @@ export default function AIStudio() {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [failedModels, setFailedModels] = useState<Set<string>>(new Set())
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
 
   // Settings state - simplified
   const [autoRounds, setAutoRounds] = useState(3)
@@ -132,6 +141,12 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
         temperature: 0.7,
       })
 
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
+        const errorInfo = (response as any).error?.message || (response as any).error || 'Missing choices or content'
+        throw new Error(`Invalid API response: ${errorInfo}`)
+      }
+
       const enhanced = response.choices[0].message.content.trim()
       setEnhancedPrompt(enhanced)
       setPromptEnhanced(true)
@@ -176,6 +191,135 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
       toast({
         title: 'Operation Cancelled',
         description: 'The current operation has been stopped',
+      })
+    }
+  }
+
+  const handleFilesSelected = async (files: File[]) => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in to upload files',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsUploadingFiles(true)
+    try {
+      const uploaded = await uploadFiles(files, {
+        userId: user.id,
+        convertToBase64: true, // Convert images to base64 for vision models
+      })
+
+      setUploadedFiles(prev => [...prev, ...uploaded])
+
+      toast({
+        title: 'Files Uploaded',
+        description: `${uploaded.length} file(s) uploaded successfully`,
+      })
+    } catch (error) {
+      console.error('File upload failed:', error)
+      toast({
+        title: 'Upload Failed',
+        description: error instanceof Error ? error.message : 'Failed to upload files',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsUploadingFiles(false)
+    }
+  }
+
+  const handleRemoveFile = async (fileId: string) => {
+    const file = uploadedFiles.find(f => f.id === fileId)
+    if (!file) return
+
+    try {
+      await deleteFile(file.storageRef)
+      setUploadedFiles(prev => prev.filter(f => f.id !== fileId))
+
+      toast({
+        title: 'File Removed',
+        description: 'File has been deleted',
+      })
+    } catch (error) {
+      console.error('File deletion failed:', error)
+      toast({
+        title: 'Deletion Failed',
+        description: 'Failed to delete file',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleRateResponse = async (roundId: string, rating: number) => {
+    if (!user) return
+
+    setRounds(prev =>
+      prev.map(r => (r.id === roundId ? { ...r, userRating: rating } : r))
+    )
+
+    // Save rating to Firestore
+    const round = rounds.find(r => r.id === roundId)
+    if (round) {
+      try {
+        await recordBatchJudgments(user.id, question, [
+          {
+            modelId: round.modelId,
+            modelName: round.modelName,
+            rating,
+            isWinner: round.isWinner || false,
+            responseTime: round.duration,
+          },
+        ])
+
+        toast({
+          title: 'Rating Saved',
+          description: `Rated ${round.modelName} ${rating} stars`,
+        })
+      } catch (error) {
+        console.error('Failed to save rating:', error)
+        toast({
+          title: 'Failed to save rating',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
+
+  const handleSelectWinner = async (roundId: string) => {
+    if (!user) return
+
+    // Unmark all other rounds as winners
+    setRounds(prev =>
+      prev.map(r => ({
+        ...r,
+        isWinner: r.id === roundId,
+      }))
+    )
+
+    // Save all judgments including winner
+    try {
+      const judgments = rounds.map(r => ({
+        modelId: r.modelId,
+        modelName: r.modelName,
+        rating: r.userRating || 3, // Default to 3 if not rated
+        isWinner: r.id === roundId,
+        responseTime: r.duration,
+      }))
+
+      await recordBatchJudgments(user.id, question, judgments)
+
+      const winner = rounds.find(r => r.id === roundId)
+      toast({
+        title: 'Winner Selected',
+        description: `${winner?.modelName} marked as best response`,
+      })
+    } catch (error) {
+      console.error('Failed to save winner:', error)
+      toast({
+        title: 'Failed to save selection',
+        variant: 'destructive',
       })
     }
   }
@@ -252,11 +396,20 @@ Provide ONLY the enhanced version of the question, without explanations or prefi
         throw new Error('Operation cancelled')
       }
 
+      // Create message content with uploaded files
+      const messageContent = createMessageWithFiles(promptToUse, uploadedFiles)
+
       const response = await openRouterService.createChatCompletion({
         model: firstModel.id,
-        messages: [{ role: 'user', content: promptToUse }],
+        messages: [{ role: 'user', content: messageContent }],
         temperature,
       })
+
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
+        const errorInfo = (response as any).error?.message || (response as any).error || 'Missing choices or content'
+        throw new Error(`Invalid API response: ${errorInfo}`)
+      }
 
       const initialAnswer = response.choices[0].message.content
       const duration = Date.now() - startTime
@@ -373,6 +526,12 @@ ENHANCED ANSWER:
         messages: [{ role: 'user', content: critiquePrompt }],
         temperature,
       })
+
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
+        const errorInfo = (response as any).error?.message || (response as any).error || 'Missing choices or content'
+        throw new Error(`Invalid API response: ${errorInfo}`)
+      }
 
       const responseText = response.choices[0].message.content
       const duration = Date.now() - startTime
@@ -587,6 +746,14 @@ ENHANCED ANSWER:
                 <p className="text-sm text-purple-800 dark:text-purple-200">{enhancedPrompt}</p>
               </div>
             )}
+
+            {/* File Upload for Vision/Audio Models */}
+            <FileUpload
+              onFilesSelected={handleFilesSelected}
+              uploadedFiles={uploadedFiles}
+              onRemoveFile={handleRemoveFile}
+              disabled={isRunning || isUploadingFiles}
+            />
 
             {/* Quick settings inline */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
@@ -936,12 +1103,29 @@ ENHANCED ANSWER:
                               </span>
                             </div>
                           ) : (
-                            <p className={cn(
-                              "text-sm leading-relaxed whitespace-pre-wrap",
-                              !showFullContent[round.id] && "line-clamp-4"
-                            )}>
-                              {round.content}
-                            </p>
+                            <>
+                              <p className={cn(
+                                "text-sm leading-relaxed whitespace-pre-wrap",
+                                !showFullContent[round.id] && "line-clamp-4"
+                              )}>
+                                {round.content}
+                              </p>
+
+                              {/* Rating Component */}
+                              {user && (
+                                <div className="mt-4 pt-4 border-t">
+                                  <ResponseRating
+                                    modelId={round.modelId}
+                                    modelName={round.modelName}
+                                    currentRating={round.userRating}
+                                    isWinner={round.isWinner}
+                                    onRate={(rating) => handleRateResponse(round.id, rating)}
+                                    onSelectWinner={() => handleSelectWinner(round.id)}
+                                    disabled={isRunning}
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                         </CardContent>
                       </Card>

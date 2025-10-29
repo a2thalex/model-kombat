@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { openRouterService } from '@/services/openrouter'
 import { LLMConfig, OpenRouterModel } from '@/types'
 import { toast } from '@/hooks/use-toast'
+import { logger } from '@/utils/logger'
 
 interface LLMConfigState {
   // State
@@ -67,7 +68,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           try {
             await get().fetchModelCatalog()
           } catch (error) {
-            console.error('Failed to fetch catalog on load:', error)
+            logger.error('Failed to fetch catalog on load', error)
           }
         }
       },
@@ -104,7 +105,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             description: 'Your OpenRouter API key has been saved successfully.',
           })
         } catch (error: any) {
-          console.error('Failed to save API key:', error)
+          logger.error('Failed to save API key', error)
           set({ lastError: error.message })
           toast({
             title: 'Failed to Save API Key',
@@ -126,11 +127,14 @@ export const useLLMConfigStore = create<LLMConfigState>()(
           if (apiKey) {
             openRouterService.initialize(apiKey)
           } else if (get().config?.openRouterApiKey) {
-            const savedKey = deobfuscateKey(get().config!.openRouterApiKey)
-            if (savedKey) {
-              openRouterService.initialize(savedKey)
-            } else {
-              throw new Error('Failed to decode API key')
+            const configKey = get().config?.openRouterApiKey
+            if (configKey) {
+              const savedKey = deobfuscateKey(configKey)
+              if (savedKey) {
+                openRouterService.initialize(savedKey)
+              } else {
+                throw new Error('Failed to decode API key')
+              }
             }
           } else {
             throw new Error('No API key configured')
@@ -149,7 +153,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
 
           return isConnected
         } catch (error: any) {
-          console.error('Connection test failed:', error)
+          logger.error('Connection test failed', error)
           set({ lastError: error.message })
           toast({
             title: 'Connection Failed',
@@ -181,7 +185,7 @@ export const useLLMConfigStore = create<LLMConfigState>()(
             description: `Loaded ${models.length} models from OpenRouter.`,
           })
         } catch (error: any) {
-          console.error('Failed to fetch model catalog:', error)
+          logger.error('Failed to fetch model catalog', error)
           set({ lastError: error.message })
           toast({
             title: 'Failed to Fetch Catalog',

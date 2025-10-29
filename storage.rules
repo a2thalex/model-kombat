@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for ModelKombat
+// Secure file uploads for multimodal AI features
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isValidImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|gif|webp)');
+    }
+
+    function isValidPdfType() {
+      return request.resource.contentType == 'application/pdf';
+    }
+
+    function isValidAudioType() {
+      return request.resource.contentType.matches('audio/(mpeg|wav|ogg|webm)');
+    }
+
+    function isValidFileType() {
+      return isValidImageType() || isValidPdfType() || isValidAudioType();
+    }
+
+    function isValidImageSize() {
+      return request.resource.size <= 10 * 1024 * 1024; // 10MB
+    }
+
+    function isValidPdfSize() {
+      return request.resource.size <= 20 * 1024 * 1024; // 20MB
+    }
+
+    function isValidAudioSize() {
+      return request.resource.size <= 25 * 1024 * 1024; // 25MB
+    }
+
+    function isValidSize() {
+      return (isValidImageType() && isValidImageSize()) ||
+             (isValidPdfType() && isValidPdfSize()) ||
+             (isValidAudioType() && isValidAudioSize());
+    }
+
+    // User uploads - only authenticated users can access their own files
+    match /users/{userId}/uploads/{fileName} {
+      // Allow read if authenticated and is the owner
+      allow read: if isAuthenticated() && isOwner(userId);
+
+      // Allow create if authenticated, is owner, and file is valid type and size
+      allow create: if isAuthenticated() &&
+                      isOwner(userId) &&
+                      isValidFileType() &&
+                      isValidSize();
+
+      // Allow delete if authenticated and is the owner
+      allow delete: if isAuthenticated() && isOwner(userId);
+
+      // No updates allowed - delete and recreate instead
+      allow update: if false;
+    }
+
+    // Deny all other paths by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

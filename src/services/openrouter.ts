@@ -1,14 +1,26 @@
 import axios, { AxiosInstance } from 'axios'
 import Bottleneck from 'bottleneck'
 import { OpenRouterModel } from '@/types'
+import { logger } from '@/utils/logger'
 
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1'
+
+// Multimodal content types for vision and audio models
+export type MessageContent =
+  | string
+  | Array<{
+      type: 'text' | 'image_url'
+      text?: string
+      image_url?: {
+        url: string // Can be URL or base64 data URL
+      }
+    }>
 
 export interface ChatCompletionRequest {
   model: string
   messages: Array<{
     role: 'system' | 'user' | 'assistant'
-    content: string
+    content: MessageContent
   }>
   temperature?: number
   max_tokens?: number
@@ -73,6 +85,11 @@ class OpenRouterService {
         'Content-Type': 'application/json',
       },
       timeout: 120000, // 120 second timeout for slower models
+      // Fix for HTTP/2 protocol errors
+      httpAgent: undefined,
+      httpsAgent: undefined,
+      maxRedirects: 5,
+      validateStatus: (status) => status >= 200 && status < 300,
     })
   }
 
@@ -90,7 +107,7 @@ class OpenRouterService {
       )
       return response.status === 200
     } catch (error) {
-      console.error('OpenRouter connection test failed:', error)
+      logger.error('OpenRouter connection test failed', error)
       return false
     }
   }
@@ -127,7 +144,7 @@ class OpenRouterService {
 
       return models
     } catch (error) {
-      console.error('Failed to fetch model catalog:', error)
+      logger.error('Failed to fetch model catalog', error)
       throw new Error('Failed to fetch model catalog. Please check your API key.')
     }
   }
@@ -162,6 +179,15 @@ class OpenRouterService {
   }
 
   /**
+   * Get models that support vision (image inputs)
+   */
+  getVisionCapableModels(): OpenRouterModel[] {
+    return Array.from(this.modelCache.values()).filter(
+      model => model.architecture?.input_modalities?.includes('image')
+    )
+  }
+
+  /**
    * Make a chat completion request
    */
   async createChatCompletion(
@@ -173,7 +199,7 @@ class OpenRouterService {
     }
 
     // Debug logging for troubleshooting
-    console.log('OpenRouter API Request:', {
+    logger.apiCall('POST', '/chat/completions', {
       model: request.model,
       messageCount: request.messages.length,
       temperature: request.temperature,
@@ -191,12 +217,26 @@ class OpenRouterService {
 
       return response.data
     } catch (error: any) {
-      console.error('Chat completion failed:', error)
-      console.error('Error response:', error.response?.data)
+      logger.error('Chat completion failed', error, {
+        model: request.model,
+        errorResponse: error.response?.data,
+        errorCode: error.code,
+        errorMessage: error.message
+      })
+
+      // Handle HTTP/2 protocol errors (Chrome/network issue)
+      if (error.message?.includes('ERR_HTTP2_PROTOCOL_ERROR') || error.code === 'ERR_HTTP2_PROTOCOL_ERROR') {
+        throw new Error('Network protocol error. Please refresh the page and try again.')
+      }
+
+      // Handle network errors
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        throw new Error('Network error. Please check your internet connection and try again.')
+      }
 
       if (error.response?.status === 400) {
         const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || 'Invalid request'
-        console.error('400 Error details:', errorMsg)
+        logger.error('400 Error details', error, { errorMsg })
         throw new Error(`Bad Request: ${errorMsg}. Check your API key and model selection.`)
       } else if (error.response?.status === 401) {
         throw new Error('Invalid API key. Please check your OpenRouter API key.')
@@ -265,7 +305,7 @@ class OpenRouterService {
                 }
               }
             } catch (e) {
-              console.error('Failed to parse streaming chunk:', e)
+              logger.error('Failed to parse streaming chunk', e)
             }
           }
         }
@@ -331,4 +371,75 @@ export function modelSupportsCapability(
       // Check if it's directly in supported_parameters
       return model.supported_parameters?.includes(capability) || false
   }
+}
+
+/**
+ * Helper to create a multimodal message with text and images
+ */
+export function createMultimodalMessage(
+  role: 'user' | 'assistant' | 'system',
+  text: string,
+  imageUrls?: string[]
+): { role: 'user' | 'assistant' | 'system'; content: MessageContent } {
+  if (!imageUrls || imageUrls.length === 0) {
+    return { role, content: text }
+  }
+
+  const content: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
+    { type: 'text', text }
+  ]
+
+  imageUrls.forEach(url => {
+    content.push({
+      type: 'image_url',
+      image_url: { url }
+    })
+  })
+
+  return { role, content }
+}
+
+/**
+ * Helper to format base64 image for API
+ */
+export function formatBase64Image(base64: string, mimeType: string = 'image/jpeg'): string {
+  // If already has data URL prefix, return as is
+  if (base64.startsWith('data:')) {
+    return base64
+  }
+  // Add data URL prefix
+  return `data:${mimeType};base64,${base64}`
+}
+
+/**
+ * Helper to create a message with uploaded files
+ */
+export function createMessageWithFiles(
+  text: string,
+  files: Array<{ url?: string; base64?: string; type: string }>
+): MessageContent {
+  const imageFiles = files.filter(f => f.type.startsWith('image/'))
+
+  if (imageFiles.length === 0) {
+    return text
+  }
+
+  const content: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
+    { type: 'text', text }
+  ]
+
+  imageFiles.forEach(file => {
+    const imageUrl = file.base64
+      ? formatBase64Image(file.base64, file.type)
+      : file.url
+
+    if (imageUrl) {
+      content.push({
+        type: 'image_url',
+        image_url: { url: imageUrl }
+      })
+    }
+  })
+
+  return content
 }

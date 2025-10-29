@@ -4,6 +4,7 @@ import { db, auth } from '@/services/firebase'
 import { openRouterService } from '@/services/openrouter'
 import { LLMConfig, OpenRouterModel } from '@/types'
 import { toast } from '@/hooks/use-toast'
+import { logger } from '@/utils/logger'
 
 interface LLMConfigState {
   // State
@@ -26,8 +27,17 @@ interface LLMConfigState {
   clearConfig: () => void
 }
 
-// Helper function to encrypt API key (basic obfuscation, not true encryption)
-// In production, you'd want to use a proper encryption service
+// ⚠️ SECURITY WARNING: This is basic obfuscation, NOT encryption!
+// API keys stored this way can be easily decoded by anyone with browser access.
+//
+// RECOMMENDATIONS:
+// 1. NEVER share or deploy this app with your personal API keys stored
+// 2. Each user should use their own OpenRouter API key
+// 3. For production: implement a backend proxy to hide API keys server-side
+// 4. Consider using environment-specific keys with proper access controls
+//
+// This obfuscation only prevents casual viewing in browser DevTools.
+// It provides NO security against determined attackers.
 function obfuscateKey(key: string): string {
   return btoa(key).split('').reverse().join('')
 }
@@ -79,7 +89,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
           try {
             await get().fetchModelCatalog()
           } catch (error) {
-            console.error('Failed to fetch catalog on load:', error)
+            logger.error('Failed to fetch catalog on load', error)
           }
         }
 
@@ -95,7 +105,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         set({ config: defaultConfig })
       }
     } catch (error) {
-      console.error('Failed to load LLM config:', error)
+      logger.error('Failed to load LLM config', error)
       set({ lastError: 'Failed to load configuration' })
     } finally {
       set({ loading: false })
@@ -145,7 +155,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         description: 'Your OpenRouter API key has been saved successfully.',
       })
     } catch (error: any) {
-      console.error('Failed to save API key:', error)
+      logger.error('Failed to save API key', error)
       set({ lastError: error.message })
       toast({
         title: 'Failed to Save API Key',
@@ -183,7 +193,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
 
       return isConnected
     } catch (error: any) {
-      console.error('Connection test failed:', error)
+      logger.error('Connection test failed', error)
       set({ lastError: error.message })
       toast({
         title: 'Connection Failed',
@@ -218,7 +228,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         description: `Loaded ${models.length} models from OpenRouter.`,
       })
     } catch (error: any) {
-      console.error('Failed to fetch model catalog:', error)
+      logger.error('Failed to fetch model catalog', error)
       set({ lastError: error.message })
       toast({
         title: 'Failed to Fetch Catalog',
@@ -257,7 +267,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         },
       }))
     } catch (error) {
-      console.error('Failed to toggle model:', error)
+      logger.error('Failed to toggle model', error)
       toast({
         title: 'Failed to Update Model',
         description: 'Could not update model configuration.',
@@ -282,7 +292,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         },
       }))
     } catch (error) {
-      console.error('Failed to set default refiner:', error)
+      logger.error('Failed to set default refiner', error)
       toast({
         title: 'Failed to Update',
         description: 'Could not set default refiner model.',
@@ -307,7 +317,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         },
       }))
     } catch (error) {
-      console.error('Failed to set default judge:', error)
+      logger.error('Failed to set default judge', error)
       toast({
         title: 'Failed to Update',
         description: 'Could not set default judge model.',
@@ -341,7 +351,7 @@ export const useLLMConfigStore = create<LLMConfigState>((set, get) => ({
         },
       }))
     } catch (error) {
-      console.error('Failed to set default rounds:', error)
+      logger.error('Failed to set default rounds', error)
       toast({
         title: 'Failed to Update',
         description: 'Could not set default refinement rounds.',

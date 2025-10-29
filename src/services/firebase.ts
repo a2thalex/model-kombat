@@ -11,12 +11,16 @@ import {
   updateProfile
 } from 'firebase/auth'
 import {
-  getFirestore,
+
   connectFirestoreEmulator,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager
 } from 'firebase/firestore'
+import {
+  getStorage,
+  connectStorageEmulator
+} from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -41,6 +45,9 @@ export const db = initializeFirestore(app, {
   })
 })
 
+// Initialize Firebase Storage
+export const storage = getStorage(app)
+
 // Auth providers
 export const googleProvider = new GoogleAuthProvider()
 googleProvider.addScope('profile')
@@ -56,6 +63,7 @@ githubProvider.addScope('user:email')
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true') {
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })
   connectFirestoreEmulator(db, 'localhost', 8080)
+  connectStorageEmulator(storage, 'localhost', 9199)
 }
 
 // Auth helper functions

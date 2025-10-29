@@ -41,7 +41,7 @@ export default function AdversarialRefinement({
   )
   const [currentRound, setCurrentRound] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
-  const [isRefining, setIsRefining] = useState(false)
+  const [, setIsRefining] = useState(false)
   const [selectedRound, setSelectedRound] = useState<number | null>(null)
 
   const handleStartRefinement = async () => {
@@ -233,8 +233,9 @@ Please provide an improved version of the response that addresses all the feedba
     setSelectedRound(null)
   }
 
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString()
+  const formatTimestamp = (timestamp: string | Date) => {
+    const dateString = timestamp instanceof Date ? timestamp.toISOString() : timestamp
+    return new Date(dateString).toLocaleTimeString()
   }
 
   return (

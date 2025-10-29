@@ -204,6 +204,7 @@ export interface OpenRouterModel {
 export interface LLMConfig {
   userId: string
   openRouterApiKey?: string // Encrypted
+  geminiApiKey?: string // Google Gemini API key (encrypted)
   enabledModelIds: string[]
   defaultRefinerId?: string
   defaultJudgeId?: string

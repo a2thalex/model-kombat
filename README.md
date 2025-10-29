@@ -48,6 +48,25 @@ The crown jewel of Model Kombat - automate iterative refinement across multiple 
 - **Dark Mode Support**: Full theme customization
 - **Rate Limiting**: Built-in protection with Bottleneck (10 req/s)
 
+## 🔒 Security Notice
+
+**⚠️ IMPORTANT: Please read before deploying to production**
+
+This application stores OpenRouter API keys client-side with basic obfuscation (NOT encryption). For personal or development use, this is acceptable with proper precautions. For production or multi-user deployments, you **must** implement additional security measures.
+
+**Read the full [SECURITY.md](./SECURITY.md) document for:**
+- API key security recommendations
+- Production deployment checklist
+- Best practices for Firebase configuration
+- Rate limiting and monitoring setup
+
+**Quick Security Tips:**
+- ✅ Each user should use their own OpenRouter API key
+- ✅ Set spending limits on your OpenRouter account
+- ✅ Never share your deployment with untrusted users
+- ✅ For production: implement a backend proxy for API calls
+- ✅ Regularly rotate API keys and monitor usage
+
 ## 🛠️ Technology Stack
 
 - **Frontend**: React 18 + TypeScript + Vite

@@ -9,10 +9,10 @@ import {
   Shield,
   Brain,
   Trophy,
-  Users,
-  BarChart3,
+  
+  
   Globe,
-  Star,
+  
   CheckCircle,
   PlayCircle,
   ChevronRight,
@@ -20,19 +20,19 @@ import {
   Twitter,
   Linkedin,
   MessageSquare,
-  Cpu,
+  
   Layers,
   Target,
   Flame,
   Rocket,
   Crown,
   Award,
-  TrendingUp,
-  Lock,
+  
+  
   CloudLightning,
   Gauge,
   Bot,
-  Activity
+  
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { motion } from 'framer-motion'

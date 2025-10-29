@@ -7,7 +7,9 @@ import AuthPage from './features/auth/AuthPage'
 import PricingPage from './features/pricing/PricingPage'
 import AIStudio from './features/ai-studio/AIStudio'
 import LLMConfigPage from './features/llm-config/LLMConfigPage'
+import GeminiTest from './features/gemini-test/GeminiTest'
 import LoadingSpinner from './components/ui/loading-spinner'
+import ErrorBoundary from './components/ErrorBoundary'
 import { useAuthStore } from './store/auth'
 import './styles/globals.css'
 
@@ -45,6 +47,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/ffa" element={<AIStudio />} />
         <Route path="/llm-config" element={<LLMConfigPage />} />
+        <Route path="/gemini-test" element={<GeminiTest />} />
       </Route>
 
       {/* Catch all */}
@@ -66,10 +69,14 @@ function App() {
   }, [initAuth])
 
   return (
-    <BrowserRouter>
-      <AppRoutes />
-      <Toaster />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ErrorBoundary>
+          <AppRoutes />
+          <Toaster />
+        </ErrorBoundary>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

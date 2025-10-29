@@ -3,14 +3,6 @@ import { Check, ChevronDown, Crown, Sparkles, Search, X } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { Button } from '@/components/ui/button'
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,

@@ -6,27 +6,26 @@ import {
   Key,
   RefreshCw,
   TestTube,
-  Check,
-  X,
+  
+
   Brain,
   Gavel,
   Zap,
   FileJson,
-  DollarSign,
+  
   Save,
   Eye,
   EyeOff,
   Cloud,
   HardDrive,
   Crown,
-  Star,
-  Sparkles
+  
+  
 } from 'lucide-react'
 // Use local store when in development bypass mode to avoid Firebase auth issues
 import { useLLMConfigStore } from '@/store/llm-config-hybrid'
 import LoadingSpinner from '@/components/ui/loading-spinner'
 import { cn } from '@/utils/cn'
-import { OpenRouterModel } from '@/types'
 import { FLAGSHIP_MODEL_IDS } from '@/utils/flagship-models'
 
 export default function LLMConfigPage() {

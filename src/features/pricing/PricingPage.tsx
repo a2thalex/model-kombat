@@ -9,12 +9,12 @@ import {
   Zap,
   ArrowRight,
   Sparkles,
-  Brain,
+  
   Trophy,
-  Shield,
+  
   Rocket,
   Crown,
-  Users,
+  
   Building2,
   HelpCircle,
   ChevronRight

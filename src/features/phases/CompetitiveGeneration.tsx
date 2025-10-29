@@ -22,7 +22,7 @@ import {
   BarChart3,
   Clock
 } from 'lucide-react'
-import { Project, CompetitorGeneration, RefinementRound } from '@/types'
+import { Project, CompetitorGeneration } from '@/types'
 import { cn } from '@/utils/cn'
 
 interface CompetitiveGenerationProps {
@@ -54,7 +54,7 @@ export default function CompetitiveGeneration({
   )
   const [stats, setStats] = useState<GenerationStats[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedGeneration, setSelectedGeneration] = useState<number | null>(null)
+  const [, ] = useState<number | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [currentGeneratingModel, setCurrentGeneratingModel] = useState<string | null>(null)
 
@@ -312,7 +312,7 @@ export default function CompetitiveGeneration({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stats.map((stat, index) => (
+              {stats.map((stat) => (
                 <Card key={stat.modelId} className={cn(
                   'relative',
                   stat.status === 'generating' && 'border-primary',
